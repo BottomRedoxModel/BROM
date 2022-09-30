@@ -41,10 +41,10 @@ contains
       !use fabm_niva_brom_halite
       !use fabm_niva_brom_minerals
       !use fabm_niva_brom_volumes
-      !use fabm_niva_oxydep
-      !use fabm_niva_brom_injection
-      !use fabm_niva_brom_bioplast
-      !use fabm_niva_brom_mg
+      use fabm_niva_oxydep
+      use fabm_niva_brom_injection
+      use fabm_niva_brom_bioplast
+      use fabm_niva_brom_mg
 
       ! Add new NIVA models here
 
@@ -77,10 +77,10 @@ contains
          !case ('brom_halite');        allocate(type_niva_brom_halite::model)
          !case ('brom_minerals');      allocate(type_niva_brom_minerals::model)
          !case ('brom_volumes');      allocate(type_niva_brom_volumes::model)
-         !case ('oxydep');             allocate(type_niva_oxydep::model)
-         !case ('brom_injection');     allocate(type_niva_brom_injection::model)
-         !case ('brom_bioplast');      allocate(type_niva_brom_bioplast::model) 
-         !case ('brom_mg');      allocate(type_niva_brom_mg::model) 
+         case ('oxydep');             allocate(type_niva_oxydep::model)
+         case ('brom_injection');     allocate(type_niva_brom_injection::model)
+         case ('brom_bioplast');      allocate(type_niva_brom_bioplast::model) 
+         case ('brom_mg');      allocate(type_niva_brom_mg::model) 
 
          ! Add new NIVA models here
       end select
