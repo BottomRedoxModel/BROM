@@ -28,13 +28,15 @@ module fabm_niva_brom_manganese
     type(type_diagnostic_variable_id):: id_mn_ox2,id_mn_ox1,id_mn_rd1,id_DcTOM_MnX
     type(type_diagnostic_variable_id):: id_mn_rd2,id_mns_diss,id_mns_form,id_mns_ox
     type(type_diagnostic_variable_id):: id_mnco3_diss,id_mnco3_form
+    type(type_diagnostic_variable_id):: id_Wadd
+
     !diagnostic dependencies
     type(type_dependency_id):: id_Hplus
     type(type_dependency_id):: id_CO3
 
     !Model parameters
     !sinking
-    real(rk):: Wm
+    real(rk):: WMn, Wtot
     !specific rates of biogeochemical processes
     !----Mn---------!
     real(rk):: K_mn_ox1,K_mn_ox2,K_mn_rd1,K_mn_rd2,K_mns
@@ -68,11 +70,13 @@ module fabm_niva_brom_manganese
     !-----Model parameters------
     !Sinking
     call self%get_parameter(&
-         self%Wm,'Wm','[1/day]',&
-         'Rate of accelerated sinking of particles with settled&
-         Mn hydroxides',&
+         self%WMn,'WMn','[1/day]',&
+         'Mn particles sinking rate',&
          default=16.0_rk)
-
+    call self%get_parameter(&
+         self%Wtot,'Wtot','[1/day]',&
+         'Total accelerated sinking of Mn hydroxides',&
+         default=16.0_rk)
 
     !Specific rates of biogeochemical processes
     !---- Mn---------!
@@ -218,13 +222,13 @@ module fabm_niva_brom_manganese
          minimum=0.0_rk)
     call self%register_state_variable(&
          self%id_Mn4, 'Mn4', 'mmol/m**3','Mn(IV)',&
-         minimum=0.0_rk,vertical_movement=-self%Wm/86400._rk)
+         minimum=0.0_rk,vertical_movement=-self%Wtot/86400._rk)
     call self%register_state_variable(&
          self%id_MnS, 'MnS', 'mmol/m**3','MnS',&
-         minimum=0.0_rk,vertical_movement=-self%Wm/86400._rk)
+         minimum=0.0_rk,vertical_movement=-self%Wtot/86400._rk)
     call self%register_state_variable(&
          self%id_MnCO3, 'MnCO3', 'mmol/m**3','MnCO3',&
-         minimum=0.0_rk,vertical_movement=-self%Wm/86400._rk)
+         minimum=0.0_rk,vertical_movement=-self%Wtot/86400._rk)
     call self%register_state_variable(&
          self%id_PO4_Mn3, 'PO4_Mn3', 'mmol/m**3','PO4_Mn3, PO4 complexed with Mn(III)',&
          minimum=0.0_rk)
@@ -334,6 +338,9 @@ module fabm_niva_brom_manganese
          self%id_mn_rd2,'mn_rd2','mmol/m**3',&
          'Mn(III) with H2S reduction',&
          output=output_time_step_integrated)
+    call self%register_diagnostic_variable(&
+         self%id_Wadd,'Wadd','[1/day]',&
+         'Additional sinking velocity via Mn4 adsorptoin')
 
     !Register diagnostic dependencies
     call self%register_dependency(self%id_Hplus,&
@@ -370,6 +377,8 @@ module fabm_niva_brom_manganese
     real(rk):: DcDOML_Mn3, DcPOML_Mn3, DcDOMR_Mn3, DcPOMR_Mn3 
     real(rk):: DcPOML_Mn4, DcDOML_Mn4, DcPOMR_Mn4, DcDOMR_Mn4
     real(rk):: DcTOM_MnX
+    !sinking
+    real(rk):: WMn, Wadd
 
     _LOOP_BEGIN_
       !Retrieve current (local) variable values.
@@ -506,7 +515,10 @@ module fabm_niva_brom_manganese
              ! DcDM_Mn is in N-units,i.e.424/16
              )
       _SET_ODE_(self%id_Alk,d_Alk)
+      
+      ! Calculate increased manganese sinking via MnIV and MnIII oxides formation
 
+      Wadd = self%WMn*Mn4/(Mn4+0.1_rk)
       _SET_DIAGNOSTIC_(self%id_DcPOML_Mn3,DcPOML_Mn3)
       _SET_DIAGNOSTIC_(self%id_DcDOML_Mn3,DcDOML_Mn3)
       _SET_DIAGNOSTIC_(self%id_DcPOML_Mn4,DcPOML_Mn4)
@@ -529,21 +541,19 @@ module fabm_niva_brom_manganese
   end subroutine do
   !
   !
-  ! Increased manganese sinking via MnIV and MnIII oxides formation
+  ! Set increased manganese sinking via MnIV and MnIII oxides formation
   subroutine get_vertical_movement(self, _ARGUMENTS_GET_VERTICAL_MOVEMENT_)
      class (type_niva_brom_manganese), intent(in) :: self
      _DECLARE_ARGUMENTS_GET_VERTICAL_MOVEMENT_
      
-     real(rk) :: Wm
-     real(rk) :: Mn4
+     real(rk) :: Wadd, Wtot
           
      _LOOP_BEGIN_
-      _GET_(self%id_Mn4,Mn4)
-      
-      Wm = self%Wm*Mn4/(Mn4+0.1_rk)
+      Wtot = self%WMn + Wadd 
 
-      _ADD_VERTICAL_VELOCITY_(self%id_Mn4, Wm)
-
+      _ADD_VERTICAL_VELOCITY_(self%id_Mn4, Wtot)
+      _ADD_VERTICAL_VELOCITY_(self%id_MnS, Wtot)
+      _ADD_VERTICAL_VELOCITY_(self%id_MnCO3, Wtot)
      _LOOP_END_
 
   end subroutine get_vertical_movement

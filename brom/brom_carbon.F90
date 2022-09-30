@@ -16,14 +16,19 @@ module fabm_niva_brom_carbon
   implicit none
   private
   type,extends(type_base_model),public:: type_niva_brom_carbon
-  !all descriptions are in the initialize subroutine
+  
+    !all descriptions are in the initialize subroutine
     type(type_state_variable_id):: id_DIC,id_Alk
     type(type_diagnostic_variable_id):: id_pCO2
     type(type_diagnostic_variable_id):: id_CO3
-  !diagnostic dependencies
+    type(type_diagnostic_variable_id):: id_CO2_flux
+    !type(type_diagnostic_variable_id):: id_pCO2
+	
+    !diagnostic dependencies
     type(type_dependency_id):: id_Hplus,id_Kc0,id_Kc1,id_Kc2
-  !for do_surface
-    type(type_dependency_id):: id_temp,id_salt,id_pCO2w
+	
+    !for do_surface
+    type(type_dependency_id):: id_temp,id_salt,id_pCO2w,id_CO2_fluxw
     type(type_horizontal_dependency_id):: id_windspeed,id_pCO2a
     real(rk):: l_bubble, s_bubble
     
@@ -57,6 +62,8 @@ contains
     call self%register_diagnostic_variable(&
          self%id_pCO2,'pCO2','ppm','pCO2')
     call self%register_diagnostic_variable(&
+         self%id_CO2_flux,'CO2_flux','mmol/m2/d','CO2_flux')
+    call self%register_diagnostic_variable(&
          self%id_CO3,'CO3','mmol/m**3','CO3--',standard_variable=&
          standard_variables%&
          mole_concentration_of_carbonate_expressed_as_carbon)
@@ -74,6 +81,8 @@ contains
          self%id_windspeed,standard_variables%wind_speed)
     call self%register_dependency(&
          self%id_pCO2w,'pCO2','ppm','partial pressure of CO2')
+    call self%register_dependency(&
+         self%id_CO2_fluxw,'CO2_flux','mmol/m2/d','CO2_fluxw')								   
 
     !diagnostic variables
     call self%register_dependency(self%id_Hplus,'Hplus','mmol/m**3','H+')
@@ -95,14 +104,17 @@ contains
     real(rk):: temp, salt, Kc0
     real(rk):: Sc, fwind !PML
     real(rk):: u_fric, Cd, kp, kc, delta_P ! bubbles related
-    real(rk):: pCO2w, pCO2a
+    real(rk):: pCO2w, pCO2a, CO2_fluxw, CO2_flux
     real(rk):: windspeed
 
     _HORIZONTAL_LOOP_BEGIN_
       _GET_(self%id_temp,temp) !temperature
       _GET_(self%id_salt,salt) !salinity
+	  
       !previouss pCO2 which calculates here in the subroutine do
       _GET_(self%id_pCO2w,pCO2w) 
+      _GET_(self%id_CO2_fluxw,CO2_fluxw) 
+
       !Equilibrium constants
       _GET_(self%id_Kc0,Kc0) !K0 in (mol/kg-SW)/atmosphere
       _GET_HORIZONTAL_(self%id_windspeed,windspeed)
@@ -142,6 +154,8 @@ contains
     endif      
      
     Q_DIC = Qs*Kc0+Qb+Qi !mmol/(m2xs)
+    CO2_fluxw  = Q_DIC
+    CO2_flux = CO2_fluxw
 
     _SET_SURFACE_EXCHANGE_(self%id_DIC,Q_DIC)
     _HORIZONTAL_LOOP_END_
@@ -158,7 +172,7 @@ contains
     !diagnostic variables
     real(rk):: Kc0,Kc1,Kc2
     real(rk):: H_
-    real(rk):: hco3,co3,co2,pCO2
+    real(rk):: hco3,co3,co2,pCO2,CO2_flux, CO2_fluxw
     
     _LOOP_BEGIN_
       !state variables
@@ -176,10 +190,11 @@ contains
       co3  = DIC/(1._rk+H_/Kc2+H_*H_/Kc1/Kc2)
       co2  = DIC/(1._rk+Kc1/H_+Kc1*Kc2/H_/H_)
       pco2 = co2/Kc0 ![uatm]
+      CO2_flux = CO2_fluxw
 
       _SET_DIAGNOSTIC_(self%id_pCO2,pCO2)
       _SET_DIAGNOSTIC_(self%id_CO3,co3)
-    
+      _SET_DIAGNOSTIC_(self%id_CO2_flux,CO2_flux)    
       _LOOP_END_
   end subroutine do
 end module
