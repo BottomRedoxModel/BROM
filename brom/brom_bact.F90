@@ -36,10 +36,9 @@ module fabm_niva_brom_bact
     type(type_dependency_id):: id_s2o3_ox,id_fe_ox1
     type(type_dependency_id):: id_DcTOM_O2, id_DcTOM_NOX, id_DcTOM_MnX
     type(type_dependency_id):: id_DcTOM_Fe, id_DcTOM_SOX, id_DcTOM_CH4
-    !type(type_dependency_id):: id_Wadd
     !Model parameters
     !sinking
-    real(rk):: Wbact !, Wtot
+    real(rk):: Wbact
     !specific rates of biogeochemical processes
     !----Bacteria-!
     real(rk):: K_Baae_gro,K_Baae_mrt,K_Baae_mrt_h2s,limBaae
@@ -51,7 +50,6 @@ module fabm_niva_brom_bact
   contains
     procedure :: initialize
     procedure :: do
-    !procedure :: get_vertical_movement
   end type
 contains
   !
@@ -59,7 +57,7 @@ contains
   !
   subroutine initialize(self,configunit)
     class (type_niva_brom_bact), intent(inout), target :: self
-    integer,                     intent(in)            :: configunit
+    integer,                      intent(in)            :: configunit
 
     !-----Model parameters------
     !Sinking
@@ -67,10 +65,6 @@ contains
          self%Wbact,'Wbact','[1/day]',&
          'Rate of sinking of bacteria (Bhae,Baae,Bhan,Baan)',&
          default=0.4_rk)
-    !call self%get_parameter(&
-    !     self%Wtot,'Wtot','[1/day]',&
-    !     'Total accelerated sinking with absorbed Mn hydroxides',&
-    !      default=0.4_rk)
     !Specific rates of biogeochemical processes
     !----Bacteria-!
     call self%get_parameter(&
@@ -209,8 +203,6 @@ contains
          'mmol/m**3','Total OM mineralization with SO4 and S2O3')
     call self%register_dependency(self%id_DcTOM_CH4,'DcTOM_CH4', &
          'mmol/m**3','Total OM mineralization with methane genesis')
-    !call self%register_dependency(self%id_Wadd,'Wadd','[1/day]',&
-    !     'Additional sinking velocity via Mn4 adsorptoin')
     !Register state dependencies
     call self%register_state_dependency(&
          self%id_NH4,'NH4','mmol/m**3',&
@@ -412,27 +404,4 @@ contains
 
     yy=x**2/(a**2+x**2)
   end function yy
-
-  ! Set increased manganese sinking via MnIV and MnIII oxides formation
-  !subroutine get_vertical_movement(self, _ARGUMENTS_GET_VERTICAL_MOVEMENT_)
-  !   class (type_niva_brom_bact), intent(in) :: self
-  !   _DECLARE_ARGUMENTS_GET_VERTICAL_MOVEMENT_
-  !   
-  !   real(rk) :: Wadd, Wtot
-  !        
-  !   _LOOP_BEGIN_
-  !
-  !    _GET_(self%id_Wadd,Wadd)
-  !   
-  !    Wtot = self%Wbact + 0.1_rk * Wadd 
-  !
-  !    _ADD_VERTICAL_VELOCITY_(self%id_Baae, Wtot)
-  !    _ADD_VERTICAL_VELOCITY_(self%id_Bhae, Wtot)
-  !    _ADD_VERTICAL_VELOCITY_(self%id_Baan, Wtot)
-  !    _ADD_VERTICAL_VELOCITY_(self%id_Bhan, Wtot)
-  !
-  !
-  !   _LOOP_END_
-  !
-  !end subroutine get_vertical_movement
 end module fabm_niva_brom_bact
