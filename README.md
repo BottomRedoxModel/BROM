@@ -1,1 +1,2 @@
-"# brom_niva_module" 
+# BROM
+Biogeochemical modules of Bottom Redox Model
