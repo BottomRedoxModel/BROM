@@ -44,7 +44,7 @@ module fabm_niva_brom_fe
 
     !Model parameters
     !sinking
-    real(rk):: Wm
+    real(rk):: WFe
     !specific rates of biogeochemical processes
     !---- Fe--------!
     real(rk):: K_fe_ox1,K_fe_ox2,K_fe_rd,K_fes,K_fes_form
@@ -77,7 +77,7 @@ contains
     !-----Model parameters------
     !Sinking
     call self%get_parameter(&
-         self%Wm,'Wm','[1/day]',&
+         self%WFe,'WFe','[1/day]',&
          'Rate of accelerated sinking of particles with settled&
           Mn hydroxides',&
           default=7.0_rk)
@@ -205,22 +205,22 @@ contains
          minimum=0.0_rk)
     call self%register_state_variable(&
          self%id_Fe3, 'Fe3', 'mmol/m**3','Fe(III) oxides',&
-         minimum=0.0_rk,vertical_movement=-self%Wm/86400._rk)
+         minimum=0.0_rk,vertical_movement=-self%WFe/86400._rk)
     call self%register_state_variable(&
          self%id_FeS, 'FeS', 'mmol/m**3','FeS',&
-         minimum=0.0_rk,vertical_movement=-self%Wm/86400._rk)
+         minimum=0.0_rk,vertical_movement=-self%WFe/86400._rk)
     call self%register_state_variable(&
          self%id_FeCO3, 'FeCO3', 'mmol/m**3','FeCO3',&
-         minimum=0.0_rk,vertical_movement=-self%Wm/86400._rk)
+         minimum=0.0_rk,vertical_movement=-self%WFe/86400._rk)
     call self%register_state_variable(&
          self%id_FeS2, 'FeS2', 'mmol/m**3','FeS2',&
-         minimum=0.0_rk, vertical_movement=-self%Wm/86400._rk)
+         minimum=0.0_rk, vertical_movement=-self%WFe/86400._rk)
     call self%register_state_variable(&
          self%id_Fe3PO42, 'Fe3PO42', 'mmol/m**3','Fe3PO42',&
-         minimum=0.0_rk,vertical_movement=-self%Wm/86400._rk)
+         minimum=0.0_rk,vertical_movement=-self%WFe/86400._rk)
     call self%register_state_variable(&
          self%id_PO4_Fe3, 'PO4_Fe3', 'mmol/m**3','PO4_Fe3 adsorbed',&
-         minimum=0.0_rk,vertical_movement=-self%Wm/86400._rk)
+         minimum=0.0_rk,vertical_movement=-self%WFe/86400._rk)
 
     !Register state dependencies
     call self%register_state_dependency(&
