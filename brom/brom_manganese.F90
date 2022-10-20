@@ -36,7 +36,7 @@ module fabm_niva_brom_manganese
 
     !Model parameters
     !sinking
-    real(rk):: WMn, Wtot
+    real(rk):: WMn,  Mn4WMn, WMn_tot
     !specific rates of biogeochemical processes
     !----Mn---------!
     real(rk):: K_mn_ox1,K_mn_ox2,K_mn_rd1,K_mn_rd2,K_mns
@@ -74,7 +74,11 @@ module fabm_niva_brom_manganese
          'Mn particles sinking rate',&
          default=16.0_rk)
     call self%get_parameter(&
-         self%Wtot,'Wtot','[1/day]',&
+         self%Mn4WMn,'Mn4WMn','[1/day]',&
+         'Mn4 threshold for sinking rate increase',&
+         default=16.0_rk)   
+    call self%get_parameter(&
+         self%WMn_tot,'WMn_tot','[1/day]',&
          'Total accelerated sinking of Mn hydroxides',&
          default=16.0_rk)
 
@@ -222,13 +226,13 @@ module fabm_niva_brom_manganese
          minimum=0.0_rk)
     call self%register_state_variable(&
          self%id_Mn4, 'Mn4', 'mmol/m**3','Mn(IV)',&
-         minimum=0.0_rk,vertical_movement=-self%Wtot/86400._rk)
+         minimum=0.0_rk,vertical_movement=-self%WMn_tot/86400._rk)
     call self%register_state_variable(&
          self%id_MnS, 'MnS', 'mmol/m**3','MnS',&
-         minimum=0.0_rk,vertical_movement=-self%Wtot/86400._rk)
+         minimum=0.0_rk,vertical_movement=-self%WMn_tot/86400._rk)
     call self%register_state_variable(&
          self%id_MnCO3, 'MnCO3', 'mmol/m**3','MnCO3',&
-         minimum=0.0_rk,vertical_movement=-self%Wtot/86400._rk)
+         minimum=0.0_rk,vertical_movement=-self%WMn_tot/86400._rk)
     call self%register_state_variable(&
          self%id_PO4_Mn3, 'PO4_Mn3', 'mmol/m**3','PO4_Mn3, PO4 complexed with Mn(III)',&
          minimum=0.0_rk)
@@ -378,7 +382,7 @@ module fabm_niva_brom_manganese
     real(rk):: DcPOML_Mn4, DcDOML_Mn4, DcPOMR_Mn4, DcDOMR_Mn4
     real(rk):: DcTOM_MnX
     !sinking
-    real(rk):: WMn, Wadd
+    real(rk):: WMn, Mn4WMn, Wadd
 
     _LOOP_BEGIN_
       !Retrieve current (local) variable values.
@@ -518,7 +522,7 @@ module fabm_niva_brom_manganese
       
       ! Calculate increased manganese sinking via MnIV and MnIII oxides formation
 
-      Wadd = self%WMn*Mn4/(Mn4+0.1_rk)
+      Wadd = self%WMn*Mn4/(Mn4+self%Mn4WMn)
       
       _SET_DIAGNOSTIC_(self%id_DcPOML_Mn3,DcPOML_Mn3)
       _SET_DIAGNOSTIC_(self%id_DcDOML_Mn3,DcDOML_Mn3)
@@ -548,14 +552,14 @@ module fabm_niva_brom_manganese
      class (type_niva_brom_manganese), intent(in) :: self
      _DECLARE_ARGUMENTS_GET_VERTICAL_MOVEMENT_
      
-     real(rk) :: Wadd, Wtot
+     real(rk) :: Wadd, WMn_tot
           
      _LOOP_BEGIN_
-      Wtot = self%WMn + Wadd 
+      WMn_tot = self%WMn + Wadd 
 
-      _ADD_VERTICAL_VELOCITY_(self%id_Mn4, Wtot)
-      _ADD_VERTICAL_VELOCITY_(self%id_MnS, Wtot)
-      _ADD_VERTICAL_VELOCITY_(self%id_MnCO3, Wtot)
+      _ADD_VERTICAL_VELOCITY_(self%id_Mn4, WMn_tot)
+      _ADD_VERTICAL_VELOCITY_(self%id_MnS, WMn_tot)
+      _ADD_VERTICAL_VELOCITY_(self%id_MnCO3, WMn_tot)
      _LOOP_END_
 
   end subroutine get_vertical_movement
