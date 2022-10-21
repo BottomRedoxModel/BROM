@@ -28,12 +28,15 @@ module fabm_niva_brom_calcium
     type(type_dependency_id):: id_temp,id_salt,id_pres
     !diagnostic variables dependencies
     type(type_dependency_id):: id_CO3
+    type(type_dependency_id):: id_Wadd
 
     !Model parameters
-    real(rk):: Wsed,K_caco3_diss,K_caco3_form
+    real(rk):: K_caco3_diss,K_caco3_form
+    real(rk):: WCa, WCa_tot
   contains
     procedure :: initialize
     procedure :: do
+    procedure :: get_vertical_movement
   end type
 contains
   !
@@ -46,9 +49,13 @@ contains
     !-----Model parameters------
         !Sinking
     call self%get_parameter(&
-         self%Wsed,'Wsed','[1/day]',&
+         self%WCa,'WCa','[1/day]',&
          'Rate of sinking of detritus (POP, POM)',&
          default=5.00_rk)
+    call self%get_parameter(&
+         self%WCa_tot,'WCa_tot','[1/day]',&
+         'Total accelerated sinking with absorbed Mn hydroxides',&
+          default=5.0_rk)
     !Calcium
     call self%get_parameter(&
          self%K_caco3_diss, 'K_caco3_diss', '[1/day]',&
@@ -63,7 +70,7 @@ contains
     !state variables
     call self%register_state_variable(&
          self%id_CaCO3, 'CaCO3', 'mmol/m**3','CaCO3',&
-         minimum=0.0_rk,vertical_movement=-self%Wsed/86400._rk)
+         minimum=0.0_rk,vertical_movement=-self%WCa_tot/86400._rk)
 
     !registering dependencies
     !state
@@ -95,6 +102,8 @@ contains
          standard_variables%pressure)
     !diagnostic
     call self%register_dependency(self%id_CO3,'CO3','mmol/m**3','CO3--')
+    call self%register_dependency(self%id_Wadd,'Wadd','[1/day]',&
+         'Additional sinking velocity via Mn4 adsorptoin')
 
     !self%dt = 86400 states that all rates and cross-boundary fluxes
     !(arguments to _SET_ODE_, _SET_SURFACE_EXCHANGE_, etc.) will need
@@ -249,4 +258,24 @@ contains
       KAra       = KAra*exp(lnKArafac)
     end subroutine CaCO3solub
   end subroutine do
+
+  ! Set increased manganese sinking via MnIV and MnIII oxides formation
+  subroutine get_vertical_movement(self, _ARGUMENTS_GET_VERTICAL_MOVEMENT_)
+     class (type_niva_brom_calcium), intent(in) :: self
+     _DECLARE_ARGUMENTS_GET_VERTICAL_MOVEMENT_
+     
+     real(rk) :: Wadd, WCa_tot
+          
+     _LOOP_BEGIN_
+  
+      _GET_(self%id_Wadd,Wadd)
+     
+      WCa_tot = self%WCa !+ Wadd
+  
+      _ADD_VERTICAL_VELOCITY_(self%id_CaCO3, WCa_tot)
+
+  
+     _LOOP_END_
+
+  end subroutine get_vertical_movement
 end module
