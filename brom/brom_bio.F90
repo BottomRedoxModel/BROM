@@ -38,6 +38,7 @@ module fabm_niva_brom_bio
 
     type(type_dependency_id):: id_temp,id_salt,id_par,id_pres
     type(type_dependency_id):: id_Hplus
+    type(type_dependency_id):: id_Wadd
     type(type_horizontal_dependency_id):: id_windspeed
 
     !Model parameters
@@ -60,7 +61,7 @@ module fabm_niva_brom_bio
     !---- N, P, Si--!
     real(rk):: K_nox_lim,K_nh4_lim,K_psi,K_nfix,K_po4_lim,K_si_lim
     !---- Sinking---!
-    real(rk):: Wsed,Wphy,Whet
+    real(rk):: Wsed,Wphy,Whet ,Wsed_tot,Wphy_tot,Whet_tot
     !---- Stoichiometric coefficients ----!
     real(rk):: r_n_p, r_o_n, r_c_n, r_si_n
   contains
@@ -69,7 +70,8 @@ module fabm_niva_brom_bio
     procedure :: do_surface
     procedure :: f_t
     procedure :: graz
-    
+    procedure :: get_vertical_movement
+
     end type
     contains
 
@@ -115,6 +117,7 @@ module fabm_niva_brom_bio
          self%Tda,'Tda','[1/day]',&
          'Temperature control coefficient for OM decay',&
          default=13.0_rk)
+    
     !----Phy----------!
     call self%get_parameter(&
          self%K_phy_gro,'K_phy_gro','1/d','Maximum specific growth rate',&
@@ -134,6 +137,7 @@ module fabm_niva_brom_bio
     call self%get_parameter(&
          self%phy_t_dependence,'phy_t_dependence','-','T dependence fro Phy growth',&
          default=1)
+    
     !----Het----------!
     call self%get_parameter(&
          self%K_het_phy_gro,'K_het_phy_gro','1/d',&
@@ -179,6 +183,7 @@ module fabm_niva_brom_bio
          self%limGrazBac,'limGrazBac','mmol/m**3',&
          'Limiting parameter for bacteria grazing by Het',&
          default=2._rk)
+    
     !----N---------------
     call self%get_parameter(&
          self%K_psi,'K_psi','[nd]',&
@@ -196,16 +201,19 @@ module fabm_niva_brom_bio
          self%K_nfix,'K_nfix','[1/d]',&
          'Max. specific rate of mitrogen fixation',&
          default=10._rk)
+    
     !----P---------------
     call self%get_parameter(&
          self%K_po4_lim,'K_po4_lim','[mmol/m**3]',&
          'Half-sat. constant for uptake of PO4 by Phy',&
          default=0.02_rk)
+    
     !----Si-------------
     call self%get_parameter(&
          self%K_si_lim,'K_si_lim','[mmol/m**3]',&
          'Half-sat. constant for uptake of Si by Phy',&
          default=0.02_rk)
+    
     !----Sinking--------
     call self%get_parameter(&
          self%Wsed,'Wsed','[1/day]',&
@@ -219,6 +227,19 @@ module fabm_niva_brom_bio
          self%Whet,'Whet','[m/day]',&
          'Rate of sinking of Het',&
          default=1.00_rk)
+    call self%get_parameter(&
+         self%Wphy_tot,'Wphy_tot','[1/day]',&
+         'Total accelerated sinking with absorbed Mn hydroxides',&
+          default=0.10_rk)
+    call self%get_parameter(&
+         self%Whet_tot,'Whet_tot','[1/day]',&
+         'Total accelerated sinking with absorbed Mn hydroxides',&
+          default=1.0_rk)
+    call self%get_parameter(&
+         self%Wsed_tot,'Wsed_tot','[1/day]',&
+         'Total accelerated sinking with absorbed Mn hydroxides',&
+          default=5.0_rk)
+    
     !----Stoichiometric coefficients----!
     call self%get_parameter(self%r_n_p,'r_n_p','[-]','N[uM]/P[uM]',&
                             default=16.0_rk)
@@ -232,22 +253,23 @@ module fabm_niva_brom_bio
     call self%register_state_variable(&
          self%id_Phy,'Phy','mmol/m**3','Phy',&
          minimum=0.0001_rk,initial_value=0.0001_rk,&
-         vertical_movement=-self%Wphy/86400._rk)
+         vertical_movement=-self%Wphy_tot/86400._rk)
     call self%register_state_variable(&
          self%id_Het,'Het','mmol/m**3','Het',minimum=0.0_rk,&
-         vertical_movement=-self%Whet/86400._rk)
+         vertical_movement=-self%Whet_tot/86400._rk)
     call self%register_state_variable(&
          self%id_POML,'POML','mmol/m**3','POML labile',minimum=0.0_rk,&
-         vertical_movement=-self%Wsed/86400._rk)
+         vertical_movement=-self%Wsed_tot/86400._rk)
     call self%register_state_variable(&
          self%id_POMR,'POMR','mmol/m**3','POMR semi-labile',minimum=0.0_rk,&
-         vertical_movement=-self%Wsed/86400._rk)
+         vertical_movement=-self%Wsed_tot/86400._rk)
     call self%register_state_variable(&
          self%id_DOML,'DOML','mmol/m**3','DOML labile',minimum=0.0_rk)
     call self%register_state_variable(&
          self%id_DOMR,'DOMR','mmol/m**3','DOMR semi-labile',minimum=0.0_rk)
     call self%register_state_variable(&
          self%id_O2,'O2','mmol/m**3','O2',minimum=0.0_rk)
+    
     !Register state dependencies
     call self%register_state_dependency(&
          self%id_PO4,'PO4','mmol/m**3','PO4')
@@ -275,10 +297,14 @@ module fabm_niva_brom_bio
          self%id_Baan,'Baan','mmol/m**3','anaerobic aurotrophic bacteria')
     call self%register_state_dependency(&
          self%id_Bhan,'Bhan','mmol/m**3','anaerobic heterotrophic bacteria')
+    
     !diagnostic dependency
     call self%register_dependency(&
          self%id_Hplus,'Hplus','mmol/m**3','H+ hydrogen')
-    !Register diagnostic variables 
+    call self%register_dependency(self%id_Wadd,'Wadd','[1/day]',&
+         'Additional sinking velocity via Mn4 adsorptoin')
+    
+    !Register diagnostic variables
     call self%register_diagnostic_variable(&
          self%id_DcPOML_O2,'DcPOML_O2','mmol/m**3',&
          'POML with O2 mineralization',output=output_time_step_integrated)
@@ -370,6 +396,7 @@ module fabm_niva_brom_bio
     call self%register_diagnostic_variable(&
          self%id_POMTot,'POMTot','mmol/m**3',&
          'POMTot: refractory+labile',output=output_time_step_integrated)
+    
     !Register environmental dependencies
     call self%register_dependency(&
          self%id_par,&
@@ -746,4 +773,27 @@ module fabm_niva_brom_bio
         thr_l = 0.5-0.5*tanh((var_conc-threshold_value)*koef)
     end function 
 
+  ! Set increased manganese sinking via MnIV and MnIII oxides formation
+  subroutine get_vertical_movement(self, _ARGUMENTS_GET_VERTICAL_MOVEMENT_)
+     class (type_niva_brom_bio), intent(in) :: self
+     _DECLARE_ARGUMENTS_GET_VERTICAL_MOVEMENT_
+     
+     real(rk) :: Wadd, Wphy_tot, Whet_tot, Wsed_tot
+          
+     _LOOP_BEGIN_
+  
+      _GET_(self%id_Wadd,Wadd)
+     
+      Wphy_tot = self%Wphy !+ 0.25_rk * Wadd
+      Whet_tot = self%Whet !+ 0.5 * Wadd
+      Wsed_tot = self%Wsed !+ Wadd
+      
+      _ADD_VERTICAL_VELOCITY_(self%id_Phy, Wphy_tot)
+      _ADD_VERTICAL_VELOCITY_(self%id_Het, Whet_tot)
+      _ADD_VERTICAL_VELOCITY_(self%id_POML, Wsed_tot)
+      _ADD_VERTICAL_VELOCITY_(self%id_POMR, Wsed_tot)
+  
+     _LOOP_END_
+  
+  end subroutine get_vertical_movement
 end module fabm_niva_brom_bio
