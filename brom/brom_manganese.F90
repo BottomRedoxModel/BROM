@@ -554,6 +554,8 @@ module fabm_niva_brom_manganese
      
      real(rk) :: Wadd, WMn_tot
           
+     _GET_(self%id_Wadd,Wadd)
+     
      _LOOP_BEGIN_
       WMn_tot = self%WMn + Wadd 
 
