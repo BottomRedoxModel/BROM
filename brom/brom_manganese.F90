@@ -344,7 +344,8 @@ module fabm_niva_brom_manganese
          output=output_time_step_integrated)
     call self%register_diagnostic_variable(&
          self%id_Wadd,'Wadd','[1/day]',&
-         'Additional sinking velocity via Mn4 adsorptoin')
+         'Additional sinking velocity via Mn4 adsorptoin',&
+         source=source_get_vertical_movement)
 
     !Register diagnostic dependencies
     call self%register_dependency(self%id_Hplus,&
@@ -382,7 +383,7 @@ module fabm_niva_brom_manganese
     real(rk):: DcPOML_Mn4, DcDOML_Mn4, DcPOMR_Mn4, DcDOMR_Mn4
     real(rk):: DcTOM_MnX
     !sinking
-    real(rk):: WMn, Mn4WMn, Wadd
+    real(rk):: WMn, Mn4WMn
 
     _LOOP_BEGIN_
       !Retrieve current (local) variable values.
@@ -520,10 +521,7 @@ module fabm_niva_brom_manganese
              )
       _SET_ODE_(self%id_Alk,d_Alk)
       
-      ! Calculate increased manganese sinking via MnIV and MnIII oxides formation
-
-      Wadd = self%WMn*Mn4/(Mn4+self%Mn4WMn)
-      
+            
       _SET_DIAGNOSTIC_(self%id_DcPOML_Mn3,DcPOML_Mn3)
       _SET_DIAGNOSTIC_(self%id_DcDOML_Mn3,DcDOML_Mn3)
       _SET_DIAGNOSTIC_(self%id_DcPOML_Mn4,DcPOML_Mn4)
@@ -542,7 +540,6 @@ module fabm_niva_brom_manganese
       _SET_DIAGNOSTIC_(self%id_mns_ox,mns_ox)
       _SET_DIAGNOSTIC_(self%id_mnco3_diss,mnco3_diss)
       _SET_DIAGNOSTIC_(self%id_mnco3_form,mnco3_form)
-      _SET_DIAGNOSTIC_(self%id_Wadd,Wadd)
     _LOOP_END_
   end subroutine do
   !
@@ -552,13 +549,20 @@ module fabm_niva_brom_manganese
      class (type_niva_brom_manganese), intent(in) :: self
      _DECLARE_ARGUMENTS_GET_VERTICAL_MOVEMENT_
      
-     real(rk) :: Wadd, WMn_tot
+     real(rk) :: Mn4, Wadd, WMn_tot
           
-     _GET_(self%id_Wadd,Wadd)
+     _GET_(self%id_Mn4,Mn4)
      
      _LOOP_BEGIN_
+     
+     ! Calculate increased manganese sinking via MnIV and MnIII oxides formation
+
+      Wadd = self%WMn*Mn4/(Mn4+self%Mn4WMn)
+      
       WMn_tot = self%WMn + Wadd 
 
+      _SET_DIAGNOSTIC_(self%id_Wadd,Wadd)
+      
       _ADD_VERTICAL_VELOCITY_(self%id_Mn4, WMn_tot)
       _ADD_VERTICAL_VELOCITY_(self%id_MnS, WMn_tot)
       _ADD_VERTICAL_VELOCITY_(self%id_MnCO3, WMn_tot)
