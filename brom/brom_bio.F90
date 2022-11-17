@@ -784,9 +784,9 @@ module fabm_niva_brom_bio
   
       _GET_(self%id_Wadd,Wadd)
      
-      Wphy_tot = self%Wphy !+ 0.25_rk * Wadd
-      Whet_tot = self%Whet !+ 0.5 * Wadd
-      Wsed_tot = self%Wsed !+ Wadd
+      Wphy_tot = self%Wphy + 0.25_rk * Wadd
+      Whet_tot = self%Whet + 0.5 * Wadd
+      Wsed_tot = self%Wsed + Wadd
       
       _ADD_VERTICAL_VELOCITY_(self%id_Phy, Wphy_tot)
       _ADD_VERTICAL_VELOCITY_(self%id_Het, Whet_tot)

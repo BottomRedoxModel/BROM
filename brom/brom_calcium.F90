@@ -270,7 +270,7 @@ contains
   
       _GET_(self%id_Wadd,Wadd)
      
-      WCa_tot = self%WCa !+ Wadd
+      WCa_tot = self%WCa + Wadd
   
       _ADD_VERTICAL_VELOCITY_(self%id_CaCO3, WCa_tot)
 

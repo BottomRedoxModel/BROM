@@ -550,10 +550,10 @@ module fabm_niva_brom_manganese
      _DECLARE_ARGUMENTS_GET_VERTICAL_MOVEMENT_
      
      real(rk) :: Mn4, Wadd, WMn_tot
-          
-     _GET_(self%id_Mn4,Mn4)
      
      _LOOP_BEGIN_
+     
+     _GET_(self%id_Mn4,Mn4)
      
      ! Calculate increased manganese sinking via MnIV and MnIII oxides formation
 
