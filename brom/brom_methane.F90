@@ -26,7 +26,8 @@ module fabm_niva_brom_methane
     !global dependencies
     type (type_dependency_id)        :: id_salt
     !diagnostic variables by bacteria needed
-    type(type_diagnostic_variable_id):: id_DcPOML_ch4,id_DcDOML_ch4,id_DcPOMR_ch4,id_DcDOMR_ch4
+    type(type_diagnostic_variable_id):: id_DcPOML_ch4,id_DcDOML_ch4
+    type(type_diagnostic_variable_id):: id_DcPOMR_ch4,id_DcDOMR_ch4
     type(type_diagnostic_variable_id):: id_DcTOM_CH4, id_ch4_o2, id_ch4_so4
     
     logical   :: bgcmod_BROM ! added ice area limitation of air-sea flux, with new switch parameter use_aice.
@@ -63,28 +64,28 @@ contains
          'threshold of noX for OM sulfate reduction', default=5.0_rk)
     call self%get_parameter(&
          self%s_omch_so4, 's_omch_so4', '[uM S]',&
-         'threshold of SO4 for methane production from OM', default=15000.0_rk)
+         'threshold of SO4 for CH4 production from OM', default=15000.0_rk)
     call self%get_parameter(&
          self%s_OM_refr, 's_OM_refr', '[uM N]',&
          'threshold of decay of refractory OM', default=5.0_rk)
     call self%get_parameter(&
          self%K_DOML_ch4, 'K_DOML_ch4', '[1/day]',&
-         'Specific rate of methane production from DOML', default=0.00014_rk)
+         'Specific rate of CH4 production from DOML', default=0.00014_rk)
     call self%get_parameter(&
          self%K_POML_ch4, 'K_POML_ch4', '[1/day]',&
-         'Specific rate of methane production from POML', default=0.00014_rk)
+         'Specific rate of CH4 production from POML', default=0.00014_rk)
     call self%get_parameter(&
          self%K_POMR_ch4, 'K_POMR_ch4', '[1/day]',&
-         'Specific rate of methane production from POMR', default=0.00014_rk)
+         'Specific rate of CH4 production from POMR', default=0.00014_rk)
     call self%get_parameter(&
          self%K_DOMR_ch4, 'K_DOMR_ch4', '[1/day]',&
-         'Specific rate of methane production from DOMR', default=0.00014_rk)
+         'Specific rate of CH4 production from DOMR', default=0.00014_rk)
     call self%get_parameter(&
          self%K_ch4_o2, 'K_ch4_o2', '[1/day]',&
          'Specific rate of oxidation of CH4 with O2', default=0.14_rk)
     call self%get_parameter(&
          self%K_ch4_so4, 'K_ch4_so4', '[1/day]',&
-         'Specific rate of anoxic oxidation of CH4 with SO4', default=0.0000274_rk)
+         'Specific rate of oxidation of CH4 with SO4', default=0.0000274_rk)
     !----Stoichiometric coefficients----!
     call self%get_parameter(&
          self%r_c_n,   'r_c_n',  '[-]','C[uM]/N[uM]',default=6.625_rk)
@@ -130,7 +131,7 @@ contains
          'CH4 production from DOMR ',output=output_time_step_integrated)
     call self%register_diagnostic_variable(&
          self%id_DcTOM_CH4,'DcTOM_CH4','mmol/m**3',&
-         'Total OM mineralization with methane genesis',output=output_time_step_integrated)
+         'Total OM mineralization with CH4 genesis',output=output_time_step_integrated)
     call self%register_diagnostic_variable(&
          self%id_ch4_o2,'ch4_o2','mmol/m**3/d',&
          'CH4 oxidation with oxygen ',output=output_time_step_integrated)
@@ -163,27 +164,50 @@ contains
     real(rk):: d_DOML,d_POML,d_POMR,d_DOMR
 
     _LOOP_BEGIN_
-      !state variables
-      _GET_(self%id_DOML,DOML)
-      _GET_(self%id_DOMR,DOMR)
-      _GET_(self%id_SO4,SO4)
-      _GET_(self%id_NO3,NO3)
+    
+      !salinity      
+      _GET_(self%id_salt,salt)         
+      
+      !state variables    
+      _GET_(self%id_DOML,DOML) ! DOM in Oxydep
+      _GET_(self%id_NO3,NO3)  ! NUT in Oxydep
+      
+  if (_AVAILABLE_(self%id_DOMR)) then      
+      _GET_(self%id_DOMR,DOMR) 
+  else 
+      DOMR=0.0_rk
+  endif
+  
+  if (_AVAILABLE_(self%id_SO4)) then
+      _GET_(self%id_SO4,SO4) 
+  else
+      SO4 = salt*799.7_rk   ! convert from g Salt to g SO4 and then to uM : (2.649_rk/34.483_rk)/96.061_rk*10^6 
+  endif 
+  
+  if (_AVAILABLE_(self%id_NH4)) then
       _GET_(self%id_NH4,NH4)
+  else
+      NH4 =0.0_rk
+  endif
+  
+  if (_AVAILABLE_(self%id_PO4)) then
       _GET_(self%id_PO4,PO4)
+  else
+      PO4=0.0_rk
+  endif
+  
       !gases
       _GET_(self%id_O2,O2)
       _GET_(self%id_CH4,CH4)
       !solids
       _GET_(self%id_POML,POML)
-      _GET_(self%id_POMR,POMR)
-      !salinity      
-      _GET_(self%id_salt,salt)         
       
-  if (_AVAILABLE_(self%id_SO4)) then 
-      SO4 = SO4  
+  if (_AVAILABLE_(self%id_POMR)) then      
+      _GET_(self%id_POMR,POMR)
   else
-      SO4 = salt*799.7_rk   ! convert from g Salt to g SO4 and then to uM : (2.649_rk/34.483_rk)/96.061_rk*10^6 
-  endif
+      POMR=0.0_rk
+  endif    
+
   
       !CH4 production from DOML, POML, DOMR and POMR 
       !(CH2O)106(NH3)16H3PO4 -> 53 CO2 + 53 CH4 + 16 NH3 + H3PO4
