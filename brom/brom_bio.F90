@@ -39,7 +39,8 @@ module fabm_niva_brom_bio
     type(type_dependency_id):: id_temp,id_salt,id_par,id_pres
     type(type_dependency_id):: id_Hplus
     type(type_dependency_id):: id_Wadd
-    type(type_horizontal_dependency_id):: id_windspeed
+    type (type_horizontal_dependency_id) :: id_windspeed, id_aice
+    logical   :: use_aice ! added ice area limitation of air-sea flux, with new switch parameter use_aice.
 
     !Model parameters
     !specific rates of biogeochemical processes
@@ -63,7 +64,8 @@ module fabm_niva_brom_bio
     !---- Sinking---!
     real(rk):: Wsed,Wphy,Whet ,Wsed_tot,Wphy_tot,Whet_tot
     !---- Stoichiometric coefficients ----!
-    real(rk):: r_n_p, r_o_n, r_c_n, r_si_n
+    real(rk):: r_n_p, r_o_n, r_c_n, r_si_n      
+    
   contains
     procedure :: initialize
     procedure :: do
@@ -78,6 +80,9 @@ module fabm_niva_brom_bio
     subroutine initialize(self,configunit)
         class (type_niva_brom_bio), intent(inout), target :: self
         integer,                    intent(in)            :: configunit
+ 
+ !LOCAL VARIABLES:      
+   real(rk) :: EPS        
 
     call self%get_parameter(&
          self%LatLight,'LatLight','degree','Latitude',default=50.0_rk)
@@ -117,6 +122,8 @@ module fabm_niva_brom_bio
          self%Tda,'Tda','[1/day]',&
          'Temperature control coefficient for OM decay',&
          default=13.0_rk)
+
+   call self%get_parameter(self%use_aice, 'use_aice', '', 'use ice area to limit air-sea flux',  default=.false.)
     
     !----Phy----------!
     call self%get_parameter(&
@@ -241,14 +248,15 @@ module fabm_niva_brom_bio
           default=5.0_rk)
     
     !----Stoichiometric coefficients----!
-    call self%get_parameter(self%r_n_p,'r_n_p','[-]','N[uM]/P[uM]',&
-                            default=16.0_rk)
-    call self%get_parameter(self%r_o_n,'r_o_n','[-]','O[uM]/N[uM]',&
-                            default=6.625_rk)
-    call self%get_parameter(self%r_c_n,'r_c_n','[-]','C[uM]/N[uM]',&
-                            default=6.625_rk)
-    call self%get_parameter(self%r_si_n,'r_si_n','[-]','Si[uM]/N[uM]',&
-                            default=1.0_rk)
+    call self%get_parameter(self%r_n_p,'r_n_p','[-]','N[uM]/P[uM]', default=16.0_rk)
+    call self%get_parameter(self%r_o_n,'r_o_n','[-]','O[uM]/N[uM]', default=6.625_rk)
+    call self%get_parameter(self%r_c_n,'r_c_n','[-]','C[uM]/N[uM]', default=6.625_rk)
+    call self%get_parameter(self%r_si_n,'r_si_n','[-]','Si[uM]/N[uM]', default=1.0_rk)
+    
+!   call self%get_parameter(self%transmodel, 'transmodel', 'na', 'Type of transport model', default=0.0_rk)
+   call self%get_parameter(EPS, 'EPS', 'm^2/mg C', 'specific shortwave attenuation', default=2.208E-3_rk)     
+    
+    
     !Register state variables
     call self%register_state_variable(&
          self%id_Phy,'Phy','mmol/m**3','Phy',&
@@ -269,6 +277,15 @@ module fabm_niva_brom_bio
          self%id_DOMR,'DOMR','mmol/m**3','DOMR semi-labile',minimum=0.0_rk)
     call self%register_state_variable(&
          self%id_O2,'O2','mmol/m**3','O2',minimum=0.0_rk)
+   ! Register contribution to light extinction
+   call self%add_to_aggregate_variable(standard_variables%attenuation_coefficient_of_photosynthetic_radiative_flux, &
+        self%id_Phy,scale_factor=EPS,include_background=.true.)
+   call self%add_to_aggregate_variable(standard_variables%attenuation_coefficient_of_photosynthetic_radiative_flux, &                                       
+        self%id_Het,scale_factor=EPS,include_background=.true.)
+   call self%add_to_aggregate_variable(standard_variables%attenuation_coefficient_of_photosynthetic_radiative_flux,&
+        self%id_POML,scale_factor=EPS,include_background=.true.)
+   call self%add_to_aggregate_variable(standard_variables%attenuation_coefficient_of_photosynthetic_radiative_flux,&
+        self%id_POMR,scale_factor=EPS,include_background=.true.)
     
     !Register state dependencies
     call self%register_state_dependency(&
@@ -398,17 +415,13 @@ module fabm_niva_brom_bio
          'POMTot: refractory+labile',output=output_time_step_integrated)
     
     !Register environmental dependencies
-    call self%register_dependency(&
-         self%id_par,&
-         standard_variables%downwelling_photosynthetic_radiative_flux)
-    call self%register_dependency(&
-         self%id_temp,standard_variables%temperature)
-    call self%register_dependency(&
-         self%id_pres,standard_variables%pressure)
-    call self%register_dependency(&
-         self%id_salt,standard_variables%practical_salinity)
-    call self%register_dependency(&
-         self%id_windspeed,standard_variables%wind_speed)
+    call self%register_dependency(self%id_pres,standard_variables%pressure)
+    call self%register_dependency(self%id_temp,standard_variables%temperature)
+    call self%register_dependency(self%id_salt,standard_variables%practical_salinity)
+    call self%register_dependency(self%id_windspeed,standard_variables%wind_speed)
+    call self%register_dependency(self%id_par,standard_variables%downwelling_photosynthetic_radiative_flux)
+   if (self%use_aice) call self%register_horizontal_dependency(self%id_aice,type_horizontal_standard_variable(name='aice'))
+    
     !Specify that are rates computed in this module are per day
     !(default: per second)
     self%dt = 86400._rk
@@ -785,7 +798,7 @@ module fabm_niva_brom_bio
       _GET_(self%id_Wadd,Wadd)
      
       Wphy_tot = self%Wphy + 0.25_rk * Wadd
-      Whet_tot = self%Whet + 0.5 * Wadd
+      Whet_tot = self%Whet + 0.5_rk * Wadd
       Wsed_tot = self%Wsed + Wadd
       
       _ADD_VERTICAL_VELOCITY_(self%id_Phy, Wphy_tot)

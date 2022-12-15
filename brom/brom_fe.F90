@@ -211,22 +211,22 @@ contains
          minimum=0.0_rk)
     call self%register_state_variable(&
          self%id_Fe3, 'Fe3', 'mmol/m**3','Fe(III) oxides',&
-         minimum=0.0_rk,vertical_movement=-self%WFe_tot/86400._rk)
+         minimum=0.0_rk)
     call self%register_state_variable(&
          self%id_FeS, 'FeS', 'mmol/m**3','FeS',&
-         minimum=0.0_rk,vertical_movement=-self%WFe_tot/86400._rk)
+         minimum=0.0_rk)
     call self%register_state_variable(&
          self%id_FeCO3, 'FeCO3', 'mmol/m**3','FeCO3',&
-         minimum=0.0_rk,vertical_movement=-self%WFe_tot/86400._rk)
+         minimum=0.0_rk)
     call self%register_state_variable(&
          self%id_FeS2, 'FeS2', 'mmol/m**3','FeS2',&
-         minimum=0.0_rk, vertical_movement=-self%WFe_tot/86400._rk)
+         minimum=0.0_rk)
     call self%register_state_variable(&
          self%id_Fe3PO42, 'Fe3PO42', 'mmol/m**3','Fe3PO42',&
-         minimum=0.0_rk,vertical_movement=-self%WFe_tot/86400._rk)
+         minimum=0.0_rk)
     call self%register_state_variable(&
          self%id_PO4_Fe3, 'PO4_Fe3', 'mmol/m**3','PO4_Fe3 adsorbed',&
-         minimum=0.0_rk,vertical_movement=-self%WFe_tot/86400._rk)
+         minimum=0.0_rk)
 
     !Register state dependencies
     call self%register_state_dependency(&

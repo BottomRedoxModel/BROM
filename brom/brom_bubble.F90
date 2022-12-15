@@ -26,8 +26,8 @@ module fabm_niva_brom_bubble
    ! diagnostic dependencies
     type(type_dependency_id):: id_pCO2
    !Model parameters
-    real(rk):: W_float !floating
-    real(rk):: K_Bubble_diss, R, P_A, pi, g, TK, N_bub, sigma, Henry, Df, what_gas
+    real(rk):: W_float !floating rate
+    real(rk):: R, P_A, pi, g, TK, N_bub, sigma, Henry, Df, what_gas !K_Bubble_diss, 
     
     contains
         procedure :: initialize
@@ -43,10 +43,10 @@ module fabm_niva_brom_bubble
    !-----Model parameters------
    !Sinking
     call self%get_parameter(self%W_float,&
-      'W_float','[m/day]','Rate of floartng of bubble',  default=5.00_rk)
+      'W_float','[m/day]','Rate of floating of bubble',  default=5.00_rk)
    !Specific rates of biogeochemical processes
-    call self%get_parameter(self%K_Bubble_diss,&
-      'K_Bubble_diss', '[1/d]','K_Bubble_diss', default=100.0_rk)   
+!    call self%get_parameter(self%K_Bubble_diss,&
+!      'K_Bubble_diss', '[1/d]','K_Bubble_diss', default=100.0_rk)   
     call self%get_parameter(self%R,&
       'R', '[(n m)/(TK Mol)]','R', default=8.314_rk)   
     call self%get_parameter(self%P_A,&

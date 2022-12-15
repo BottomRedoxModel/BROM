@@ -70,7 +70,7 @@ contains
     !state variables
     call self%register_state_variable(&
          self%id_CaCO3, 'CaCO3', 'mmol/m**3','CaCO3',&
-         minimum=0.0_rk,vertical_movement=-self%WCa_tot/86400._rk)
+         minimum=0.0_rk)
 
     !registering dependencies
     !state
@@ -270,10 +270,10 @@ contains
   
       _GET_(self%id_Wadd,Wadd)
      
-      WCa_tot = self%WCa + Wadd
+      WCa_tot = self%WCa !+ Wadd
   
       _ADD_VERTICAL_VELOCITY_(self%id_CaCO3, WCa_tot)
-
+!      _ADD_VERTICAL_VELOCITY_(self%id_CaCO3, self%WCa)
   
      _LOOP_END_
 

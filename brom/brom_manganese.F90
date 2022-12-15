@@ -66,21 +66,17 @@ module fabm_niva_brom_manganese
   subroutine initialize(self,configunit)
     class (type_niva_brom_manganese), intent(inout), target :: self
     integer,                          intent(in)            :: configunit
+! !LOCAL VARIABLES:
+     real(rk) :: EPS
 
     !-----Model parameters------
     !Sinking
     call self%get_parameter(&
-         self%WMn,'WMn','[1/day]',&
-         'Mn particles sinking rate',&
-         default=16.0_rk)
+         self%WMn,'WMn','[1/day]','Mn particles sinking rate',default=16.0_rk)
     call self%get_parameter(&
-         self%Mn4WMn,'Mn4WMn','[1/day]',&
-         'Mn4 threshold for sinking rate increase',&
-         default=16.0_rk)   
+         self%Mn4WMn,'Mn4WMn','[1/day]','Mn4 threshold for sinking rate increase',default=16.0_rk)   
     call self%get_parameter(&
-         self%WMn_tot,'WMn_tot','[1/day]',&
-         'Total accelerated sinking of Mn hydroxides',&
-         default=16.0_rk)
+         self%WMn_tot,'WMn_tot','[1/day]','Total accelerated sinking of Mn hydroxides',default=16.0_rk)
 
     !Specific rates of biogeochemical processes
     !---- Mn---------!
@@ -216,7 +212,8 @@ module fabm_niva_brom_manganese
          self%r_mn3_p,'r_mn3_p','[-]',&
          'Mn[uM]/P[uM] partitioning coeff. for Mn(III)',&
          default=0.67_rk)
-
+    ! for light
+    call self%get_parameter(EPS, 'EPS', 'm^2/mg C', 'specific shortwave attenuation', default=2.208E-3_rk)     
     !Register state variables
     call self%register_state_variable(&
          self%id_Mn2, 'Mn2', 'mmol/m**3','Mn(II)',&
@@ -226,13 +223,13 @@ module fabm_niva_brom_manganese
          minimum=0.0_rk)
     call self%register_state_variable(&
          self%id_Mn4, 'Mn4', 'mmol/m**3','Mn(IV)',&
-         minimum=0.0_rk,vertical_movement=-self%WMn_tot/86400._rk)
+         minimum=0.0_rk)
     call self%register_state_variable(&
          self%id_MnS, 'MnS', 'mmol/m**3','MnS',&
-         minimum=0.0_rk,vertical_movement=-self%WMn_tot/86400._rk)
+         minimum=0.0_rk)
     call self%register_state_variable(&
          self%id_MnCO3, 'MnCO3', 'mmol/m**3','MnCO3',&
-         minimum=0.0_rk,vertical_movement=-self%WMn_tot/86400._rk)
+         minimum=0.0_rk)
     call self%register_state_variable(&
          self%id_PO4_Mn3, 'PO4_Mn3', 'mmol/m**3','PO4_Mn3, PO4 complexed with Mn(III)',&
          minimum=0.0_rk)
@@ -354,6 +351,14 @@ module fabm_niva_brom_manganese
       standard_variables%&
       mole_concentration_of_carbonate_expressed_as_carbon)
 
+   ! Register contribution to light extinction
+   call self%add_to_aggregate_variable(standard_variables%attenuation_coefficient_of_photosynthetic_radiative_flux, &
+        self%id_Mn4,scale_factor=EPS,include_background=.true.)
+   call self%add_to_aggregate_variable(standard_variables%attenuation_coefficient_of_photosynthetic_radiative_flux, &                                       
+        self%id_MnCO3,scale_factor=EPS,include_background=.true.)
+   call self%add_to_aggregate_variable(standard_variables%attenuation_coefficient_of_photosynthetic_radiative_flux,&
+        self%id_MnS,scale_factor=EPS,include_background=.true.)    
+    
     !Specify that are rates computed in this module are per day
     !(default: per second)
     self%dt = 86400._rk
@@ -520,8 +525,7 @@ module fabm_niva_brom_manganese
              ! DcDM_Mn is in N-units,i.e.424/16
              )
       _SET_ODE_(self%id_Alk,d_Alk)
-      
-            
+
       _SET_DIAGNOSTIC_(self%id_DcPOML_Mn3,DcPOML_Mn3)
       _SET_DIAGNOSTIC_(self%id_DcDOML_Mn3,DcDOML_Mn3)
       _SET_DIAGNOSTIC_(self%id_DcPOML_Mn4,DcPOML_Mn4)
