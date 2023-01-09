@@ -631,7 +631,7 @@ contains
   
       _GET_(self%id_Wadd,Wadd)
      
-      WFe_tot = self%WFe !+ Wadd 
+      WFe_tot = self%WFe + Wadd 
   
       _ADD_VERTICAL_VELOCITY_(self%id_Fe3, WFe_tot)
       _ADD_VERTICAL_VELOCITY_(self%id_FeS, WFe_tot)
