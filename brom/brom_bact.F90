@@ -428,7 +428,7 @@ contains
   
       _GET_(self%id_Wadd,Wadd)
      
-      Wbact_tot = self%Wbact + 0.1_rk * Wadd 
+      Wbact_tot = self%Wbact !+ 0.1_rk * Wadd 
   
       _ADD_VERTICAL_VELOCITY_(self%id_Baae, Wbact_tot)
       _ADD_VERTICAL_VELOCITY_(self%id_Bhae, Wbact_tot)
