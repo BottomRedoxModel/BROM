@@ -6,6 +6,83 @@ check_conservation: false
 require_initialization: true
 instances:
 #----------------------------------------------------------------------
+#  B_OXYDEP:
+#----------------------------------------------------------------------
+#    long_name: oxydep
+#    model: niva/oxydep  
+#    initialization:
+#      Phy: 0.01
+#      Het: 0.01
+#      POM: 0.01
+#      DOM: 0.0
+#      NUT: 5.
+#      Oxy: 350.
+#    coupling:
+#      DIC: B_C/DIC
+#    parameters:
+## Oxy
+#      O2_suboxic: 30.    # =30. O2 threshold for oxic/suboxic switch (mmol/m3)
+#      use_aice: true     # switch parameter for ice area limitation of air-sea flux (true/false)
+## PHY
+#      Max_uptake: 4.1 ##4.5 #3.6 #4.5 #3.6 #4. #3.5 # 3. #5. #2.7 #2.1 #0.68   #0.75 1.0    # Maximum nutrient uptake rate (1/d)
+#      Knut: 1.5 ##1.5 #0.5 #3.0 #1. #0.75          # Half-sat.const. for uptake of NUT by phy for NUT/PHY ratio, (1/d)
+#      Iopt: 100. ##80. #           # Optimal irradiance (W/m2) =50 (Savchuk, 2002)
+#      phy_t_dependence: 2 # select dependence of Phy growth rate on temperature (details are in the code):
+#                          # (1) Old (ERGOM); (2) for Arctic; (3) ERSEM
+#      r_phy_nut: 0.05     # Specific respiration rate, (1/d)
+#      r_phy_pom: 0.05 #0.15     # Specific rate of Phy mortality, (1/d)
+#      r_phy_dom: 0.10     # Specific rate of Phy excretion, (1/d)
+#      r_phy_pom_anox: 0.4 # Specific rate of Phy mortality in suboxic/anoxic conditions(1/d)
+#      O2_add_mor_phy: 20. # Threshold O2 value for additional Phy mortality, (mmol/m3)
+## HET
+#      r_phy_het: 2.0 #1.5 ###1. #2.9      ##2.9 #2.8 #1.2  Max.spec. rate of grazing of ZOO on PHY, (1/d)
+#      Kphy: 0.9 # 0.7 ## 0.1 #0.3          # Half-sat.const.for grazing of Zoo on Phy for Phy/Zoo ratio, (nd)
+#      r_pop_het: 0.7     # Max.spec. rate of grazing of ZOO on POM , (1/d)
+#      Kpop: 2.0          # Half-sat.const.for grazing of ZOO on POM for POM/ZOO ratio, (nd)
+#      r_het_nut: 0.05    # Specific ZOO respiration rate (1/d)
+#      r_het_pom: 0.13    #0.13 ##0.10    # Specific ZOO mortality rate (1/d)
+#      uz: 0.5            # Food absorbency for Zoo (nd)
+#      hz: 0.7            # Ratio between diss. and part. excretes of Zoo (nd)
+## POM
+#      r_pom_dom: 0.20     # Specific rate of POM decomposition, (1/d)
+#      r_pom_nut_oxy: 0.020 # Specific rate of POM oxic decay, (1/d)
+#      r_pom_nut_nut: 0.003 # Specific rate of POM denitrification, (1/d)
+## DOM  
+#      r_dom_nut_oxy: 0.05 #0.030 #0.015 # Specific rate of DOM oxic decay, (1/d)
+#      r_dom_nut_nut: 0.002 # Specific rate of DOM denitrification, (1/d)
+#      Tda: 13.             # Coefficient for dependence of mineralization on t   
+#      beta_da: 20.         # Coefficient for dependence of mineralization on t 
+## Lower boundary
+#      Bu: 0.1            # Burial coeficient for lower boundary (0<Bu<1), 1 - for no burying, (nd)
+#      Trel: 1.e6         # Relaxation time for exchange with the sediments (s/m)
+#      b_ox: 0.           # OXY in the sediment, (mmol/m3)
+#      b_dom_ox: 2.       # OM in the sediment (oxic conditions), (mmol/m3)  
+#      b_dom_anox: 10.    # OM in the sediment (anoxic conditions), (mmol/m3)  
+#      b_nut: 20.          # NUT in the sediment, (mmol/m3)  
+## Upper boundary
+#      pvel: 5.           # wind speed, (m/s)
+#      a0: 31.25         # oxygen saturation parameter, (mmol/m3)
+#      a1: 14.603         # oxygen saturation parameter, (nd)
+#      a2: 0.4025         # oxygen saturation parameter, (1/degC)      
+## Stochiometric coefficients
+#      NtoB: 0.016        # N[uM]/BIOMASS [mg/m3], (uM(N) / mgWW/m3)
+#      OtoN: 8.625        # Redfield (138/16) to NO3, (uM(O)/uM(N))
+#      CtoN: 6.625        # Redfield (106/16) to NO3, (uM(C)/uM(N))
+#      NtoN: 5.3          # Richards denitrification (84.8/16.), (uM(N)/uM(N))
+# Sinking
+#      Wphy: -0.25 #-0.25        # PHY sinking rate, (m/d) "-" is needed for using with FVCOM
+#      Whet: -0.4 #0.8        # -0.4  HET sinking rate, (m/d)  
+#      Wpom: -5. #-75. #-30.0 #-1.8        # POM sinking rate, (m/d) 
+#----------------------------------------------------------------------
+  B_LIGHT:
+#----------------------------------------------------------------------
+    long_name: light
+    model: niva/light
+    parameters:
+      EPS0r: 0.05 #0.04        # background shortwave attenuation (1/m), default = 0.04
+      EPSESS: 4e-05      # specific shortwave attenuation of silt (m^2/mg), default = 4e-05
+      pEIR_eow: 0.5      # photosynthetically active fraction of shortwave radiation (-), default = 0.5 
+#----------------------------------------------------------------------
   B_NUT:
 #----------------------------------------------------------------------
     long_name: main_nutrients
@@ -16,67 +93,6 @@ instances:
       NO3: 5.0
       PO4: 1.0
       Si:  5.0
-#----------------------------------------------------------------------
-  B_EQ:
-#----------------------------------------------------------------------
-    long_name: equilibrium_constants
-    model: niva/brom_eq_constants
-  B_C:
-    long_name: carbon
-    model: niva/brom_carbon
-    initialization:
-      DIC: 2130.0 # total dissolved inorganic carbon (mmol C/m^3)
-      Alk: 2300.0 
-    coupling:
-      Kc0:   B_EQ/Kc0
-      Kc1:   B_EQ/Kc1
-      Kc2:   B_EQ/Kc2
-      Hplus: B_pH/Hplus
-#----------------------------------------------------------------------
-  B_Ca:
-#----------------------------------------------------------------------
-    long_name: calcium
-    model: niva/brom_calcium
-    initialization:
-      CaCO3: 0.0
-    coupling:
-      DIC:    B_C/DIC
-      CO3:    B_C/CO3
-      Wadd:   B_Mn/Wadd
-    parameters:
-      K_caco3_diss: 3.0  
-        #! CaCO3 dissollution rate constant (1/d) (wide ranges 
-        #  are given in (Luff et al., 2001))
-      K_caco3_form: 0.0002  
-        #! CaCO3 precipitation rate constant (1/d) (wide ranges 
-        #  are given in (Luff et al., 2001))
-      WCa: 7.0 
-        #! Rate of sinking of detritus (m/d), =0.4 (Savchuk, 2002), =5. (Gregoire, Lacroix, 2001), =1-370 (Alldredge, Gotschalk, 1988)
-#----------------------------------------------------------------------
-  B_pH:
-#----------------------------------------------------------------------
-    long_name: pH
-    model: niva/brom_pH
-    coupling:
-      Kc1:      B_EQ/Kc1
-      Kc2:      B_EQ/Kc2
-      Kb:       B_EQ/Kb
-      Kp1:      B_EQ/Kp1
-      Kp2:      B_EQ/Kp2
-      Kp3:      B_EQ/Kp3
-      KSi:      B_EQ/KSi
-      Knh4:     B_EQ/Knh4
-      Kh2s:     B_EQ/Kh2s
-      kso4:     B_EQ/kso4
-      kflu:     B_EQ/kflu
-      Kw:       B_EQ/Kw
-      tot_free: B_EQ/tot_free
-      DIC:      B_C/DIC
-      PO4:      B_NUT/PO4
-      Si:       B_NUT/Si
-      NH4:      B_NUT/NH4
-      H2S:      B_S/H2S
-      SO4:      B_S/SO4
 #----------------------------------------------------------------------
   B_BIO:
 #----------------------------------------------------------------------
@@ -106,10 +122,10 @@ instances:
       Hplus:  B_pH/Hplus
       Wadd:   B_Mn/Wadd
     parameters:
-      K_phy_gro: 4.2 #3.5 #4.2  
+      K_phy_gro: 1.8 #2.0 #4.2  
         # Maximum specific growth rate (1/d) = 0.9-1.3 (Savchuk, 2002), 
         # = 3.(Gregoire, Lacroix, 2001) >!0.5 worked for Berre! 
-      Iopt: 25.
+      Iopt: 80. #25.
         # Optimal irradiance (W/m2) =50 (Savchuk, 2002)
       phy_t_dependence: 2   # select dependence of Phy growth rate on temperature:
                             # (1) Old (ERGOM); (2) for Arctic; (3) ERSEM
@@ -135,18 +151,19 @@ instances:
       K_si_lim: 0.25  #0.5  #! Half-sat. constant for uptake of Si_lim by Phy
       K_POML_DOML: 0.15       #! Specific rate of Autolysis of POML to DOML
       K_POMR_DOMR: 0.00001       #! Specific rate of Autolysis of POMR to DOMR
-      K_POML_ox: 0.000001 #0.001 #0.02       #! Specific rate of oxidation of POML with O2
-      K_POMR_ox: 0.0 #0.000000002 #0.002       #! Specific rate of oxidation of POMR with O2
-      K_DOML_ox: 0.00001 #0.01 #0.10        #! Specific rate of oxidation of DOML with O2
-      K_DOMR_ox: 0.0 #0.00000001 #0.10        #! Specific rate of oxidation of DOMR with O2
+      K_POML_ox: 0.02       #! Specific rate of oxidation of POML with O2
+      K_POMR_ox: 0.002       #! Specific rate of oxidation of POMR with O2
+      K_DOML_ox: 0.10        #! Specific rate of oxidation of DOML with O2
+      K_DOMR_ox: 0.010        #! Specific rate of oxidation of DOMR with O2
       K_omox_o2: 1.         #! half sat. of o2 for OM mineralization
-      Wsed: 5.0 #5.0        #! Rate of sinking of detritus (m/d), =0.4 (Savchuk, 2002), =5. (Gregoire, Lacroix, 2001), =1-370 (Alldredge, Gotschalk, 1988)
-      Wphy: 0.2        #! Rate of sinking of Phy (m/d), =0.1-0.5 (Savchuk, 2002)
-      Whet: 1.0         #! Rate of sinking of Het (m/d), =1. (Yakushev et al., 2007)
+      Wsed: -5.0 #5.0        #! Rate of sinking of detritus (m/d), =0.4 (Savchuk, 2002), =5. (Gregoire, Lacroix, 2001), =1-370 (Alldredge, Gotschalk, 1988)
+      Wphy: -0.2        #! Rate of sinking of Phy (m/d), =0.1-0.5 (Savchuk, 2002)
+      Whet: -1.0         #! Rate of sinking of Het (m/d), =1. (Yakushev et al., 2007)
       r_n_p: 16.0      #! N[uM]/P[uM]
       r_o_n: 6.625     #! O2[uM]/N[uM]
       r_c_n: 6.625     #! C[uM]/N[uM]  
       r_si_n: 1.0      #! Si[uM]/N[uM]
+      use_aice: false     # switch parameter for ice area limitation of air-sea flux (true/false)
 #----------------------------------------------------------------------
   B_BACT:
 #----------------------------------------------------------------------
@@ -209,15 +226,15 @@ instances:
          #!  Baan specific rate of mortality (1/d) (Yakushev, 2013)
       limBaan: 5.0
          #! Limiting parameter for nutrient consumprion by Baan (nd) (Yakushev, 2013)
-      K_Bhan_gro: 50. #1. #1.5
+      K_Bhan_gro: 20. #6. #1. #1.5
          #!  Bhan maximum specific growth rate (1/d) (Yakushev, 2013)
-      K_Bhan_mrt: 0.001 #0.01
+      K_Bhan_mrt: 0.00001 #0.01
          #changed for co2marine, test #0.01(worked before) #!  Bhan specific rate of mortality (1/d) (Yakushev, 2013)
       K_Bhan_mrt_o2: 0.899
          #!  Bhan increased specific rate of mortality due to O2 (1/d) (Yakushev, 2013)
-      limBhan: 2.0
+      limBhan: 0.1 #2.0
          #! Limiting parameter for OM consumprion by Bhan (nd) (Yakushev, 2013) 
-      Wbact: 0.4
+      Wbact: -0.4
          #! Rate of sinking of bacteria (Bhae,Baae,Bhan,Baan) (1/d), (Yakushev et al.,2007)
 
 #----------------------------------------------------------------------
@@ -292,17 +309,21 @@ instances:
          # Specific rate of methane production from POMR
       K_DOMR_ch4: 0.0000014
          # Specific rate of methane production from DOMR
-      K_ch4_o2: 0.14
-         # Specific rate of oxidation of CH4 with O2 (calculated from XXX, 0.4 1/d for O2= 100)
+      K_ch4_o2: 0.10 #0.10 1/d "0.2+/-0.1 d-1" (Chan et al., 2019)
+         # Specific rate of oxidation of CH4 with O2 (calculated from XXX, 0.4 1/d for O2= 100) !  in 2-3 orders of magnitude smaller (IPS)
       K_ch4_so4: 0.00000274 #0.0000274
          # Specific rate of oxidation of CH4 with SO4
       s_OM_refr: 100.0   # threshold of refractory OM for decay
       r_n_p: 16.0   # N[uM]/P[uM]
       r_c_n: 6.625  # C[uM]/N[uM]
     initialization:
-      CH4: 0.0 
+      CH4: 0.001 
     coupling:
-      DIC: B_C/DIC
+      DIC:  B_C/DIC
+#      O2:  B_OXYDEP/Oxy
+#      DOML: B_OXYDEP/DOM
+#      POML: B_OXYDEP/POM
+#      NO3: B_OXYDEP/NUT
       O2:  B_BIO/O2
       DOML: B_BIO/DOML
       DOMR: B_BIO/DOMR
@@ -333,11 +354,11 @@ instances:
       POMR: B_BIO/POMR
       PO4: B_NUT/PO4
     parameters:
-      K_hs_ox: 50.0 # 0.5
+      K_hs_ox: 0.5
          # Specific rate of oxidation of H2S to S0 with O2 (1/d)
-      K_s0_ox: 50.0 #20.0 #0.2 #0.02
+      K_s0_ox: 0.02
          # Specific rate of oxidation of S0 with O2
-      K_s2o3_ox: 10.0 #0.1 #0.005
+      K_s2o3_ox: 0.005
         # Specific rate of oxidation of S2O3 with O2
       K_POML_so4: 0.000001
         # Specific rate of POML sulfate reduction with sulfate
@@ -399,29 +420,29 @@ instances:
       Hplus:  B_pH/Hplus
       Wadd:   B_Mn/Wadd
     parameters: 
-      WFe: 15.0 #5.0 # (m/d)
+      WFe: -15.0 #5.0 # (m/d)
         # Rate of accel. sink. of part. with settled metal hydroxides
-      K_fe_ox1: 5.0 #10 #5.0 #1.0 # (1/d)
+      K_fe_ox1: 0.5 # (1/d)
         # Specific rate of oxidation of Fe2 to Fe3  with O2:  1.e9 (M/yr) (Boudrau, 1996)
-      K_fe_ox2: 0.02 #0.2 #0.1 # (1/d)
+      K_fe_ox2: 0.005 # (1/d)
         # Specific rate of oxidation of Fe2 to Fe3  with MnO2 and Mn(III):
-      K_fe_rd: 1.0 #2.0 #5.0 # 0.5 # (1/d)
+      K_fe_rd: 0.5 # (1/d)
         # Specific rate of reduction of Fe3 to Fe2  with H2S:
-      K_fes: 2510. #E 25.0 #251. #2510. (uM)
+      K_fes: 2510. # (uM)
         # FeS equilibrium constant: 2.51e-6 mol/cm3  (Katsev, 2006)
-      K_fes_form: 1.e-3 #E 5.0 # (1/d)
+      K_fes_form: 5.e-4 # (1/d)
         # Specific rate of precipitation of FeS from Fe2 with H2S: 4.e-5 (mol/g/yr)  (Katsev, 2006)
       K_fes_diss: 1.0e-5  # (1/d)
         # Specific rate of dissollution of FeS to Fe2 and H2S: 1.e-3 (1/yr) (Katsev, 2006)
-      K_fes_ox: 1.0e-5 #0.001 # (1/d)
+      K_fes_ox: 1.0e-4 #1.0e-5 #0.001 # (1/d)
         # Specific rate of oxidation of FeS with O2: 2.e7 - 3.e5 (M/yr) (VanCapellan, 1996)
-      K_DOML_fe: 0.000025 # (1/d)
+      K_DOML_fe: 0.01 #0.001 #0.0001 #0.1 #0.0005 #0.000025 # (1/d)
         # Specific rate of oxidation of DOML with Fe3 (1/day) 5.e-5 (1/d) (Boudrau, 1996)
-      K_POML_fe: 0.000005 # (1/d)
+      K_POML_fe: 0.01 #0.001 #0.0001 #0.1 #0.0005 #0.000025 #0.000005 # (1/d)
         # Specific rate of oxidation of POML with Fe3 (1/day) 1.e-5 (1/d) (Boudrau, 1996)
-      K_POMR_fe: 0.0000001 # (1/d)
+      K_POMR_fe: 0.01 # 0.001 #0.0001 #0.1 #0.0005 #0.000025 #0.0000001 # (1/d)
         # Specific rate of oxidation of POMR with Fe3 (1/day) 1.e-5 (1/d) (Boudrau, 1996)
-      K_DOMR_fe: 0.0000001 # (1/d)
+      K_DOMR_fe: 0.01 # 0.001 #0.0001 #0.1 #0.0005 #0.0000001 # (1/d)
         # Specific rate of oxidation of DOMR with Fe3 (1/day) 1.e-5 (1/d) (Boudrau, 1996)
       K_fes2_form: 0.000001 # (1/d)
         # Specific rate of FeS2 formation by FeS oxidation by H2S: 9.e-6 (M/d) (Rickard, Luther, 1997)
@@ -429,9 +450,9 @@ instances:
         # Specific rate of pyrite oxidation by O2: .00044 (1/d) (Bektursunova, 2011)
       s_feox_fe2: 0.001 # (uM Fe)
         # Threshold of Fe2 oxidation
-      s_ferd_fe3: 0.001 #0.01 # (uM Fe)
+      s_ferd_fe3: 0.01 # (uM Fe)
         # Threshold of Fe3 reduciton (uM Fe)
-      K_feco3: 4000. #(uM2)
+      K_feco3: 4000. (uM2)
         # Conditional equilibrium constant for FeCO3: 4.e-15 ((mol/cm3)2) (Katsev, 2006)
       K_feco3_diss: 7.e-4 # (1/d)
         # Specific rate of dissolution of FeCO3: 2.5e-1 - 1.e-2 (1/yr) (Wersin, 1990)
@@ -489,7 +510,7 @@ instances:
       POMR:   B_BIO/POMR
       Hplus:  B_pH/Hplus
     parameters:
-      WMn: 15.0 #15.0 # (m/d)
+      WMn: -15.0 #15.0 # (m/d)
         # Rate of accel. sink. of part. with settled metal hydroxides
       Mn4WMn: 0.3 
         # Mn4 threshold concentration for sinking rate increaseing (uM)
@@ -525,9 +546,9 @@ instances:
         # Specific rate of oxidation of POMR with Mn4 (assumed)
       K_DOMR_mn4: 0.0 #0.00000001 #0.000001 # (1/d)
         # Specific rate of oxidation of DOMR with Mn4 (assumed)
-      K_DOML_mn3: 0.000001 #0.0001 # (1/d)
+      K_DOML_mn3: 0.00001 #0.0001 # (1/d)
         # Specific rate of oxidation of DOML with Mn3 (assumed)
-      K_POML_mn3: 0.0000001 #0.0001 # (1/d)
+      K_POML_mn3: 0.000001 #0.0001 # (1/d)
         # Specific rate of oxidation of POML with Mn3 (assumed)
       K_POMR_mn3: 0.0 #0.00000001 #0.000001 # (1/d)
         # Specific rate of oxidation of POMR with Mn3 (assumed)
@@ -564,7 +585,7 @@ instances:
     coupling:
       Si: B_NUT/Si
     parameters:
-      Wsed: 50.0 # Rate of sinking of detritus (m/d)
+      Wsed: 5.0 # Rate of sinking of detritus (m/d)
         # Sinking (Gregoire, Lacroix, 2001)
       K_sipart_diss: 0.06
         # Si particulate biogenic dissollution rate constant (1/d) 0.08 (Popova,2004)
@@ -586,9 +607,9 @@ instances:
 #      pCO2: B_C/pCO2
 #      CH4:  B_CH4/CH4
 #    parameters:
-#      what_gas: 0 # bubbles contain: 0 for CO2
+#      what_gas: 1 # bubbles contain: 0 for CO2
 #                  #                  1 for CH4
-#      N_bub: 4000
+#      N_bub: 100
 #        # number of bubbles (-)
 #      R: 8.314 
 #        # gas constant (n m)/(TK Mol)
@@ -602,14 +623,107 @@ instances:
 #        # gravitational acceleration (m/s2)
 #      sigma: 72.86E-3
 #        # surface tension for water (N/m)
-#      Henry: 3.3E-1
+#      Henry: 1.4e-2 #3.3E-1
 #        # Henry constant for CO2 (mmol/m3/Pa) 3.3 10-4 mol/m3/Pa (Sanders,2015)
-#      Df: 1.65e-9
-#        # CO2 diffusivity (m2/s) 1.65e-9 m2/s(Perry,Green,2008) 1.6e-5 m2/s (Engineering ToolBox,2018)
-#      K_Bubble_diss: 100
+#        #                for CH4 (mmol/m3/Pa) 1.4 10-5 mol/m3/Pa (Sanders,2015)
+#      Df: 1.24e-9
+#        # CO2 diffusivity (m2/s) 1.65e-9 m2/s(Perry,Green,2008) 1.6e-5 m2/s (0.16 cm2/s at 20C) (Engineering ToolBox,2018) 
+#        # CH4 diffusivity (m2/s)   1.24E-9 m2/s (1.24E-5 cm2/s at 10C for gases in water)(Engineering ToolBox,2018)
+#  #    K_Bubble_diss: 100
 #        # rate of dissolution of gaseous CO2 (1/day) (100s of seconds for 100% (Liang,2011))
 #      W_float: -34560  #-34560.
 #        # Rate of floating (m/d) 20 cm/sec = *86400(to_day)/100(to_m)= 17280 m/d, here we put upper limit 
+##----------------------------------------------------------------------
+##----------------------------------------------------------------------
+#  B_Mg:
+##----------------------------------------------------------------------
+#    long_name: magnesium
+#    model: niva/brom_mg
+#    initialization:
+#      MgOH2: 0.0  # 1 g= 0.0171 mol
+#      Mg: 0.0 
+#    coupling:
+#      Hplus: B_pH/Hplus
+#    parameters:
+#      Wmg_min: 1. #1. #1 # 0.5  #1
+#      Wmg_max: 100. #90. #144. #90
+#        # ranges of changes of rate of sinking of Mg paticles (m/d)
+#      K_MgOH2: 1.E-12 # (M**3)
+#        # Ksp of Mg(OH)2 is 1.2 * 10–11 M3
+#      K_MgOH2_form: 5.e-8 # 5.e-4 # (1/d)
+#        # Specific rate of precipitation of MgOH2 ????
+#      K_MgOH2_diss: 1. #10. #1.0e-5 #20. #1.0e-1 #    # (1/d)
+#        # Specific rate of dissollution of MgOH2 ????
+#      MgOH2_diss_limit: 0.0001 
+#        #  concentration of MgOH2(uM) that can not be dissolved
+#----------------------------------------------------------------------
+  B_C:
+#----------------------------------------------------------------------
+    long_name: carbon
+    model: niva/brom_carbon
+    initialization:
+      DIC: 2100. #1800. #2050.0 # total dissolved inorganic carbon (mmol C/m^3)
+      Alk: 3000. #
+    coupling:
+      Kc0:   B_EQ/Kc0
+      Kc1:   B_EQ/Kc1
+      Kc2:   B_EQ/Kc2
+      Hplus: B_pH/Hplus
+    parameters:
+      l_bubble: 1.   # large bubbles effect for air-sea flux (1 for yes, 0 for no)
+      s_bubble: 1.   # small bubbles effect for air-sea flux (1 for yes, 0 for no)
+      use_aice: false # switch parameter for ice area limitation of air-sea flux (true/false)
+#----------------------------------------------------------------------
+  B_pH:
+#----------------------------------------------------------------------
+    long_name: pH
+    model: niva/brom_pH
+    coupling:
+      Kc1:      B_EQ/Kc1
+      Kc2:      B_EQ/Kc2
+      Kb:       B_EQ/Kb
+      Kp1:      B_EQ/Kp1
+      Kp2:      B_EQ/Kp2
+      Kp3:      B_EQ/Kp3
+      KSi:      B_EQ/KSi
+      Knh4:     B_EQ/Knh4
+      Kh2s:     B_EQ/Kh2s
+      kso4:     B_EQ/kso4
+      kflu:     B_EQ/kflu
+      Kw:       B_EQ/Kw
+      tot_free: B_EQ/tot_free
+      DIC:      B_C/DIC
+      PO4:      zero
+      Si:       zero
+      NH4:      zero
+      H2S:      zero
+      SO4:      zero
+#----------------------------------------------------------------------
+  B_EQ:
+#----------------------------------------------------------------------
+    long_name: equilibrium_constants
+    model: niva/brom_eq_constants
+#----------------------------------------------------------------------
+  B_Ca:
+#----------------------------------------------------------------------
+    long_name: calcium
+    model: niva/brom_calcium
+    initialization:
+      CaCO3: 0.0
+    coupling:
+      DIC:  B_C/DIC
+      CO3:  B_C/CO3
+      Wadd: B_Mn/Wadd
+    parameters:
+      K_caco3_diss: 3.0  
+        #! CaCO3 dissollution rate constant (1/d) (wide ranges 
+        #  are given in (Luff et al., 2001))
+      K_caco3_form: 0.0002  
+        #! CaCO3 precipitation rate constant (1/d) (wide ranges 
+        #  are given in (Luff et al., 2001))
+      WCa: -7.0  
+      WCa_tot: -5.0  
+        #! Rate of sinking of detritus (m/d), =0.4 (Savchuk, 2002), =5. (Gregoire, Lacroix, 2001), =1-370 (Alldredge, Gotschalk, 1988)
 ##----------------------------------------------------------------------
 #  B_Ba:
 ##----------------------------------------------------------------------
