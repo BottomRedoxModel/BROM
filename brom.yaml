@@ -213,7 +213,7 @@ instances:
 #      bctype_bottom_B_NUT_NH4: 1
 #      bc_bottom_B_NUT_NH4: 10.
       bctype_bottom_B_NUT_NH4: 1
-      bc_bottom_B_NUT_NH4: 50. #lap 300. # HF
+      bc_bottom_B_NUT_NH4: 65. #lap 300. # HF
 #
       bctype_top_B_NUT_NO3: 2
       a1top_B_NUT_NO3: 0.4 # 3
@@ -432,12 +432,12 @@ instances:
 #
 #INPUT biogeochemistry
 #
-      icfile_name: start.dat       # ascii initial condition file name (needed if port_initial_state = 1 or 2)
+      icfile_name: start_S0.dat       # ascii initial condition file name (needed if port_initial_state = 1 or 2)
 #
 #
 ##--- OUTPUT options-----------------------------------------------------------------------------------
 #
-      ncoutfile_name: black_out_2_acc.nc         # netCDF output file name
+      ncoutfile_name: black_out_2_S0acc.nc         # netCDF output file name
       ncoutfile_type: 1                          # netCDF output type, 0 write last year of calculation, 1 write all years
       sediments_units_convert: 0                 # 1(default) to convert concentrations from 'mass/total volume' into'mass/pore water ml' for dissolved and 'mass/mass' for solids
       outfile_name: finish.dat                   # ascii output file name

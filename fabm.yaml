@@ -226,7 +226,7 @@ instances:
          #!  Baan specific rate of mortality (1/d) (Yakushev, 2013)
       limBaan: 5.0
          #! Limiting parameter for nutrient consumprion by Baan (nd) (Yakushev, 2013)
-      K_Bhan_gro: 20. #6. #1. #1.5
+      K_Bhan_gro: 100. #6. #1. #1.5
          #!  Bhan maximum specific growth rate (1/d) (Yakushev, 2013)
       K_Bhan_mrt: 0.00001 #0.01
          #changed for co2marine, test #0.01(worked before) #!  Bhan specific rate of mortality (1/d) (Yakushev, 2013)
@@ -353,6 +353,7 @@ instances:
       POML: B_BIO/POML
       POMR: B_BIO/POMR
       PO4: B_NUT/PO4
+      Wadd: B_Mn/Wadd
     parameters:
       K_hs_ox: 0.5
          # Specific rate of oxidation of H2S to S0 with O2 (1/d)
@@ -388,6 +389,8 @@ instances:
       r_n_p: 16.0   # N[uM]/P[uM]
       r_c_n: 6.625  # C[uM]/N[uM]
       r_n_s: 0.302  # N[uM]/S[uM]
+      WS0: 0.0  # (m/d)
+        # Self rate S0 particles
 #----------------------------------------------------------------------
   B_Fe:
 #----------------------------------------------------------------------
@@ -649,7 +652,7 @@ instances:
 #      Wmg_max: 100. #90. #144. #90
 #        # ranges of changes of rate of sinking of Mg paticles (m/d)
 #      K_MgOH2: 1.E-12 # (M**3)
-#        # Ksp of Mg(OH)2 is 1.2 * 10–11 M3
+#        # Ksp of Mg(OH)2 is 1.2 * 10ï¿½11 M3
 #      K_MgOH2_form: 5.e-8 # 5.e-4 # (1/d)
 #        # Specific rate of precipitation of MgOH2 ????
 #      K_MgOH2_diss: 1. #10. #1.0e-5 #20. #1.0e-1 #    # (1/d)
