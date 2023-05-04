@@ -24,7 +24,8 @@ add_library(fabm_models_niva OBJECT
             brom/oxydep.F90
             brom/brom_injection.F90
             brom/brom_bioplast.F90
-	    brom/brom_mg.F90
+            brom/brom_mg.F90
+            brom/light.F90
            )
 
 add_dependencies(fabm_models_niva fabm_base)

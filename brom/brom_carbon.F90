@@ -24,7 +24,8 @@ module fabm_niva_brom_carbon
     type(type_dependency_id):: id_Hplus,id_Kc0,id_Kc1,id_Kc2
   !for do_surface
     type(type_dependency_id):: id_temp,id_salt,id_pCO2w
-    type(type_horizontal_dependency_id):: id_windspeed,id_pCO2a
+    type(type_horizontal_dependency_id):: id_windspeed, id_pCO2a, id_aice
+      logical   :: use_aice ! added ice area limitation of air-sea flux, with new switch parameter use_aice.
     real(rk):: l_bubble, s_bubble
     
   contains
@@ -40,10 +41,12 @@ contains
     class(type_niva_brom_carbon),intent(inout),target :: self
     integer,                     intent(in)           :: configunit
 
-    call self%get_parameter(self%l_bubble,&
+    call self%get_parameter(self%l_bubble, &
       'l_bubble', '[ - ]', 'large bubbles effect', default=1._rk)
-    call self%get_parameter(self%s_bubble,&
+    call self%get_parameter(self%s_bubble, &
       's_bubble', '[ - ]', 'small bubbles effect', default=1._rk)
+    call self%get_parameter(self%use_aice, &
+       'use_aice','', 'use ice area to limit air-sea flux', default=.false.)
     call self%register_state_variable(&
          self%id_DIC,'DIC','mmol/m**3','DIC',minimum=0.0_rk)
     call self%add_to_aggregate_variable(&
@@ -72,6 +75,8 @@ contains
          standard_variables%mole_fraction_of_carbon_dioxide_in_air)
     call self%register_dependency(&
          self%id_windspeed,standard_variables%wind_speed)
+   if (self%use_aice) call self%register_horizontal_dependency(&
+         self%id_aice,type_horizontal_standard_variable(name='aice'))
     call self%register_dependency(&
          self%id_pCO2w,'pCO2','ppm','partial pressure of CO2')
 
@@ -96,7 +101,7 @@ contains
     real(rk):: Sc, fwind !PML
     real(rk):: u_fric, Cd, kp, kc, delta_P ! bubbles related
     real(rk):: pCO2w, pCO2a
-    real(rk):: windspeed
+    real(rk):: windspeed, aice
 
     _HORIZONTAL_LOOP_BEGIN_
       _GET_(self%id_temp,temp) !temperature
@@ -108,6 +113,9 @@ contains
       _GET_HORIZONTAL_(self%id_windspeed,windspeed)
       _GET_HORIZONTAL_(self%id_pCO2a,pCO2a) !from atmosphere
       _GET_HORIZONTAL_(self%id_windspeed,windspeed)
+      if (self%use_aice) then
+        _GET_HORIZONTAL_(self%id_aice,aice)
+      end if
 !The total flux (Qnet) as sum of flux through the water surface (Qs),  large bubbles surface (Qb) 
 !      and from collapsing small bubbles (Qi). (McNeil, D’Assaro 2007) Qnet = Qs + Qb + Qi
 
@@ -142,6 +150,10 @@ contains
     endif      
      
     Q_DIC = Qs*Kc0+Qb+Qi !mmol/(m2xs)
+
+   if (self%use_aice) then
+       Q_DIC = (1.0_rk-aice)*Q_DIC !Limit flux to area fraction not covered by ice
+   end if
 
     _SET_SURFACE_EXCHANGE_(self%id_DIC,Q_DIC)
     _HORIZONTAL_LOOP_END_

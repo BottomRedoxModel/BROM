@@ -41,10 +41,11 @@ module fabm_niva_brom_fe
     !diagnostic dependencies
     type(type_dependency_id):: id_Hplus
     type(type_dependency_id):: id_CO3
+    type(type_dependency_id):: id_Wadd
 
     !Model parameters
     !sinking
-    real(rk):: Wm
+    real(rk):: WFe , WFe_tot
     !specific rates of biogeochemical processes
     !---- Fe--------!
     real(rk):: K_fe_ox1,K_fe_ox2,K_fe_rd,K_fes,K_fes_form
@@ -65,6 +66,8 @@ module fabm_niva_brom_fe
   contains
     procedure :: initialize
     procedure :: do
+    procedure :: get_vertical_movement
+
   end type
 contains
   !
@@ -77,9 +80,12 @@ contains
     !-----Model parameters------
     !Sinking
     call self%get_parameter(&
-         self%Wm,'Wm','[1/day]',&
-         'Rate of accelerated sinking of particles with settled&
-          Mn hydroxides',&
+         self%WFe,'WFe','1/day',&
+         'Fe particles sinking rate',&
+          default=7.0_rk)
+    call self%get_parameter(&
+         self%WFe_tot,'WFe_tot','[1/day]',&
+         'Total accelerated sinking with absorbed Mn hydroxides',&
           default=7.0_rk)
 
     !Specific rates of biogeochemical processes
@@ -205,22 +211,22 @@ contains
          minimum=0.0_rk)
     call self%register_state_variable(&
          self%id_Fe3, 'Fe3', 'mmol/m**3','Fe(III) oxides',&
-         minimum=0.0_rk,vertical_movement=-self%Wm/86400._rk)
+         minimum=0.0_rk)
     call self%register_state_variable(&
          self%id_FeS, 'FeS', 'mmol/m**3','FeS',&
-         minimum=0.0_rk,vertical_movement=-self%Wm/86400._rk)
+         minimum=0.0_rk)
     call self%register_state_variable(&
          self%id_FeCO3, 'FeCO3', 'mmol/m**3','FeCO3',&
-         minimum=0.0_rk,vertical_movement=-self%Wm/86400._rk)
+         minimum=0.0_rk)
     call self%register_state_variable(&
          self%id_FeS2, 'FeS2', 'mmol/m**3','FeS2',&
-         minimum=0.0_rk, vertical_movement=-self%Wm/86400._rk)
+         minimum=0.0_rk)
     call self%register_state_variable(&
          self%id_Fe3PO42, 'Fe3PO42', 'mmol/m**3','Fe3PO42',&
-         minimum=0.0_rk,vertical_movement=-self%Wm/86400._rk)
+         minimum=0.0_rk)
     call self%register_state_variable(&
          self%id_PO4_Fe3, 'PO4_Fe3', 'mmol/m**3','PO4_Fe3 adsorbed',&
-         minimum=0.0_rk,vertical_movement=-self%Wm/86400._rk)
+         minimum=0.0_rk)
 
     !Register state dependencies
     call self%register_state_dependency(&
@@ -360,6 +366,8 @@ contains
     call self%register_dependency(self%id_CO3,&
       standard_variables%&
       mole_concentration_of_carbonate_expressed_as_carbon)
+    call self%register_dependency(self%id_Wadd,'Wadd','[1/day]',&
+         'Additional sinking velocity via Mn4 adsorptoin')
 
     !Specify that rates are per day
     !(default: per second)
@@ -602,6 +610,7 @@ contains
       _SET_DIAGNOSTIC_(self%id_fe3po42_form,fe3po42_form)
       _SET_DIAGNOSTIC_(self%id_fe3po42_hs,fe3po42_hs)
       _SET_DIAGNOSTIC_(self%id_fe_p_compl,fe_p_compl)
+      _SET_DIAGNOSTIC_(self%id_Kad_PO4,Kad_PO4)
 !      _SET_DIAGNOSTIC_(self%id_fe_p_diss,fe_p_diss)
 !      _SET_DIAGNOSTIC_(self%id_fe_si_compl,fe_si_compl)
       _SET_DIAGNOSTIC_(self%id_fes_form,fes_form)
@@ -610,4 +619,28 @@ contains
       _SET_DIAGNOSTIC_(self%id_feS2_form,feS2_form)
     _LOOP_END_
   end subroutine do
+  
+  ! Set increased manganese sinking via MnIV and MnIII oxides formation
+  subroutine get_vertical_movement(self, _ARGUMENTS_GET_VERTICAL_MOVEMENT_)
+     class (type_niva_brom_fe), intent(in) :: self
+     _DECLARE_ARGUMENTS_GET_VERTICAL_MOVEMENT_
+     
+     real(rk) :: Wadd, WFe_tot
+          
+     _LOOP_BEGIN_
+  
+      _GET_(self%id_Wadd,Wadd)
+     
+      WFe_tot = self%WFe + Wadd 
+  
+      _ADD_VERTICAL_VELOCITY_(self%id_Fe3, WFe_tot)
+      _ADD_VERTICAL_VELOCITY_(self%id_FeS, WFe_tot)
+      _ADD_VERTICAL_VELOCITY_(self%id_FeCO3, WFe_tot)
+      _ADD_VERTICAL_VELOCITY_(self%id_FeS2, WFe_tot)
+      _ADD_VERTICAL_VELOCITY_(self%id_Fe3PO42, WFe_tot)
+      _ADD_VERTICAL_VELOCITY_(self%id_PO4_Fe3, WFe_tot)
+  
+     _LOOP_END_
+  
+  end subroutine get_vertical_movement
 end module fabm_niva_brom_fe

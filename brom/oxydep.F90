@@ -7,7 +7,7 @@
 ! FITNESS FOR A PARTICULAR PURPOSE. A copy of the license is provided in
 ! the COPYING file at the root of the FABM distribution.
 !-----------------------------------------------------------------------
-! Original author(s): Evgeniy Yakushev, Jorn Bruggemann
+! Original author(s): Evgeniy Yakushev, Jorn Bruggemann, Anfisa Berezina
 !-----------------------------------------------------------------------
 
 #include "fabm_driver.h"
@@ -16,7 +16,7 @@
 !BOP
 !
 ! !MODULE: fabm_niva_oxydep --- OXYDEP biogeochemical model based upon
-! Yakushev et al, 2013  with  modifications by Jorn Bruggeman
+! Yakushev et al, 2013  with  modifications by Jorn Bruggeman and Anfisa Berezina
 ! and adapted for FABM by Jorn Bruggeman
 !
 ! !INTERFACE:
@@ -50,22 +50,23 @@
    private
 !
 ! !REVISION HISTORY:!
-!  Original author(s): Evgeniy Yakushev, Jorn Bruggeman
+!  Original author(s): Evgeniy Yakushev, Jorn Bruggeman, Anfisa Berezina
 !
 ! !PUBLIC DERIVED TYPES:
    type,extends(type_base_model),public :: type_niva_oxydep
 !     Variable identifiers
       type (type_state_variable_id)        :: id_oxy,id_phy,id_het,id_nut,id_pom,id_dom
-      type (type_state_variable_id)        :: id_dic !, id_alk
+      type (type_state_variable_id)        :: id_dic, id_alk
       type (type_dependency_id)            :: id_par,id_temp, id_salt
-      type (type_horizontal_dependency_id) :: id_windspeed
+      type (type_horizontal_dependency_id) :: id_windspeed, id_aice
       type (type_diagnostic_variable_id)   :: id_MortHet,id_RespHet,id_GrazPhy,id_GrazPOM,id_GrowthPhy,id_MortPhy,id_ExcrPhy,id_RespPhy
       type (type_diagnostic_variable_id)   :: id_DOM_decay_ox,id_DOM_decay_denitr,id_POM_decay_ox,id_POM_decay_denitr
       type (type_diagnostic_variable_id)   :: id_LimT,id_LimP,id_LimN,id_LimLight, id_N_fixation, id_Autolys
+      logical   :: use_aice ! added ice area limitation of air-sea flux, with new switch parameter use_aice.
 !     Model parameters
       !----Phy -----------!
-       real(rk) :: Max_uptake, bm, cm, Knut, r_phy_nut, r_phy_pom, r_phy_dom, r_phy_pom_anox,ir_min, Iopt, O2_add_mor_phy
-       real(rk) :: q10, t_upt_min, t_upt_max
+       real(rk) :: Max_uptake, Knut, r_phy_nut, r_phy_pom, r_phy_dom, r_phy_pom_anox, Iopt, O2_add_mor_phy
+       integer  :: phy_t_dependence ! select dependence on T: (1) ERGOM; (2) for Arctic; (3) ERSEM
       !----Het -----------!
        real(rk) :: r_phy_het, Kphy, r_pop_het, Kpop, r_het_nut, r_het_pom, Uz, Hz, r_het_pom_anox
       !----DOM, POM   --- !
@@ -88,6 +89,7 @@
       procedure :: do
       procedure :: do_surface
       procedure :: do_bottom
+      procedure :: f_t
    end type
 !EOP
 !-----------------------------------------------------------------------
@@ -97,7 +99,7 @@
 !-----------------------------------------------------------------------
 !BOP
 !
-! !IROUTINE: Initialise the NPZD model
+! !IROUTINE: Initialise the OxyDep model
 !
 ! !INTERFACE:
    subroutine initialize(self,configunit)
@@ -111,10 +113,11 @@
    integer,                  intent(in)            :: configunit
 !
 ! !REVISION HISTORY:
-!  Original author(s): Evgeniy Yakushev, Jorn Bruggemann
+!  Original author(s): Evgeniy Yakushev, Jorn Bruggemann, Anfisa Berezina
 !
 ! !LOCAL VARIABLES:
    real(rk),parameter ::  d_per_s = 1.0_rk/86400.0_rk
+   real(rk) :: EPS
 !EOP
 !-----------------------------------------------------------------------
 !BOC
@@ -124,16 +127,11 @@
   ! Phy
    call self%get_parameter(self%Max_uptake,'Max_uptake','1/d', 'Maximum nutrient uptake rate',                               default=5.0_rk,scale_factor=d_per_s)
    call self%get_parameter(self%Knut,      'Knut',      'nd',  'Half-sat.const. for uptake of NUT by Phy for NUT/Phy ratio', default=0.1_rk)
-   call self%get_parameter(self%bm,        'bm',      '1/gradC',     'Coefficient for uptake rate dependence on t',          default=0.12_rk)
-   call self%get_parameter(self%cm,        'cm',      'nd',          'Coefficient for uptake rate dependence on t',          default=1.4_rk)
-   call self%get_parameter(self%q10,       'q10',       'nd',        'Coefficient for uptake rate dependence on t',          default=2.0_rk)
-   call self%get_parameter(self%t_upt_min, 't_upt_min', 'gradC',     'Low t limit for uptake rate dependence on t',          default=10.0_rk)
-   call self%get_parameter(self%t_upt_max, 't_upt_max', 'gradC',     'High t limit for uptake rate dependence on t',         default=32.0_rk)
-   call self%get_parameter(self%ir_min,    'ir_min',      'nd',      'bioshading parameter ',                                default=25._rk)
    call self%get_parameter(self%Iopt,      'Iopt',    'Watts/m**2/h',  'Optimal irradiance',                                 default=25.0_rk)
-   call self%get_parameter(self%r_phy_nut,     'r_phy_nut',     '1/d', 'Specific Phy  respiration rate',                          default=0.04_rk,scale_factor=d_per_s)
-   call self%get_parameter(self%r_phy_pom,     'r_phy_pom',     '1/d', 'Specific Phy rate of mortality',                         default=0.05_rk,scale_factor=d_per_s)
-   call self%get_parameter(self%r_phy_dom,     'r_phy_dom',     '1/d', 'Specific Phy rate of excretion',                         default=0.01_rk,scale_factor=d_per_s)
+   call self%get_parameter(self%phy_t_dependence,'phy_t_dependence','-','T dependence fro Phy growth',                       default=1)
+   call self%get_parameter(self%r_phy_nut,     'r_phy_nut',     '1/d', 'Specific Phy  respiration rate',                     default=0.04_rk,scale_factor=d_per_s)
+   call self%get_parameter(self%r_phy_pom,     'r_phy_pom',     '1/d', 'Specific Phy rate of mortality',                     default=0.05_rk,scale_factor=d_per_s)
+   call self%get_parameter(self%r_phy_dom,     'r_phy_dom',     '1/d', 'Specific Phy rate of excretion',                     default=0.01_rk,scale_factor=d_per_s)
    call self%get_parameter(self%r_phy_pom_anox, 'r_phy_pom_anox', '1/d', 'Specific additional Phy mortality in suboxic/anoxic conditions', default=0.4_rk,scale_factor=d_per_s)
    call self%get_parameter(self%r_het_pom_anox, 'r_het_pom_anox', '1/d', 'Specific additional Het mortality in suboxic/anoxic conditions', default=0.4_rk,scale_factor=d_per_s)
    call self%get_parameter(self%O2_add_mor_phy, 'O2_add_mor_phy', 'mmol/m3', 'Threshold O2 value for additional Phy mortality', default=20._rk)
@@ -155,6 +153,8 @@
    call self%get_parameter(self%r_dom_nut_nut, 'r_dom_nut_nut', '1/d', 'Specific rate of DOM denitrification  ',             default=0.002_rk,scale_factor=d_per_s)
    call self%get_parameter(self%Tda,           'Tda',           'nd',  'Coefficient for dependence of mineralization on t ', default=13._rk)
    call self%get_parameter(self%beta_da,       'beta_da',       'nd',  'Coefficient for dependence of mineralization on t ', default=20._rk)
+  ! O2
+   call self%get_parameter(self%use_aice, 'use_aice',    '', 'use ice area to limit air-sea flux',                  default=.false.)
   !---sinking-------------------------------!
    call self%get_parameter(self%Wphy,     'Wphy',     'm/s', 'vertical velocity of Phy (<0 for sinking)',           default=-0.1_rk,scale_factor=d_per_s)
    call self%get_parameter(self%Whet,     'Whet',     'm/s', 'vertical velocity of het (<0 for sinking)',           default=-0.1_rk,scale_factor=d_per_s)
@@ -179,7 +179,8 @@
    call self%get_parameter(self%NtoN,     'NtoN',         'uM(N)/uM(N)',   'Richards denitrification (84.8/16.)',           default=5.3_rk)
    
    call self%get_parameter(self%transmodel, 'transmodel', 'na', 'Type of transport model', default=0.0_rk)
-   
+   call self%get_parameter(EPS, 'EPS', 'm^2/mg C', 'specific shortwave attenuation', default=2.208E-3_rk)     
+
    ! Register state variables
    call self%register_state_variable(self%id_oxy,'Oxy','mmol/m**3','Oxy: Oxygen',  150.0_rk, minimum=0.0_rk)
    call self%register_state_variable(self%id_phy,'Phy','mmol/m**3','Phy: Autotrophs/Phytoplankton',  0.1_rk, minimum=0.0_rk, vertical_movement=self%Wphy)
@@ -193,6 +194,14 @@
    !call self%add_to_aggregate_variable(standard_variables%total_nitrogen,self%id_pom)
    !call self%add_to_aggregate_variable(standard_variables%total_nitrogen,self%id_dom)
    !call self%add_to_aggregate_variable(standard_variables%total_nitrogen,self%id_het)
+
+   ! Register contribution to light extinction
+   call self%add_to_aggregate_variable(standard_variables%attenuation_coefficient_of_photosynthetic_radiative_flux, &
+        self%id_phy,scale_factor=EPS,include_background=.true.)
+   call self%add_to_aggregate_variable(standard_variables%attenuation_coefficient_of_photosynthetic_radiative_flux, &                                       
+        self%id_het,scale_factor=EPS,include_background=.true.)
+   call self%add_to_aggregate_variable(standard_variables%attenuation_coefficient_of_photosynthetic_radiative_flux,&
+        self%id_pom,scale_factor=EPS,include_background=.true.)
 
    ! Register link to external DIC pool, if DIC variable name is provided in namelist.
    call self%register_state_dependency(self%id_dic,'DIC','mmol/m**3','total dissolved inorganic carbon',required=.false.)
@@ -239,6 +248,7 @@ call self%register_diagnostic_variable(self%id_Autolys,'Autolys','mmol/m**3/d', 
    call self%register_dependency(self%id_salt,standard_variables%practical_salinity)
    call self%register_dependency(self%id_windspeed,standard_variables%wind_speed)
    call self%register_dependency(self%id_par,standard_variables%downwelling_photosynthetic_radiative_flux)
+   if (self%use_aice) call self%register_horizontal_dependency(self%id_aice,type_horizontal_standard_variable(name='aice'))
 
    end subroutine initialize
 !EOC
@@ -300,21 +310,14 @@ call self%register_diagnostic_variable(self%id_Autolys,'Autolys','mmol/m**3/d', 
 
    ! Retrieve current environmental conditions.
    _GET_(self%id_par,Iz)              ! local photosynthetically active radiation
-   _GET_(self%id_temp,t)              ! temperature
-
+   _GET_(self%id_temp,t)              ! temperature 
 !--------------------------------------------------------------
 ! Phy
 !--------------------------------------------------------------
    ! Growth of Phy and uptake of NUT
-       LimLight = Iz/self%Iopt*exp(1-Iz/self%Iopt)  !Dependence on Irradiance
-       LimT     = self%q10**((t-self%t_upt_min)/10.) - self%q10**((t-self%t_upt_max)/3.) !Dependence on Temperature (ERSEM)
- !      LimT     = 0.5(1+tanh((t-tmin)/smin)) (1-0.5(1+th((t-tmax)/smax))) !Smin= 15  Smax= 15  Tmin=  10 Tmax= 35 !Dependence on Temperature   (Deb et al., .09)
- !      LimT     = exp(self%bm*temp-self%cm))        !Dependence on Temperature (used in (Ya,So, 2011) for Arctic)  
- !      LimT     = 1./(1.+exp(10.-temp))             !Dependence on Temperature (ERGOM for cya)
- !      LimT     = 1.-temp*temp/(temp*temp +12.*12.) !Dependence on Temperature (ERGOM for dia)
- !      LimT     = 2.**((temp- 10.)/10.) -2**((temp-32.)/3.) !(ERSEM
- !      LimT     =q10*(T-20)/10 !Q10=1.88 (Gr., 2000)       
-       LimN     = yy(self%Knut,nut/(max(0.0001,phy)))             !Dependence on nutrients
+       LimLight = Iz/self%Iopt*exp(1-Iz/self%Iopt)    !Dependence on Irradiance
+       LimT     = self%f_t(t)                         !Dependence on Temperature
+       LimN     = yy(self%Knut,nut/(max(0.0001,phy))) !Dependence on nutrients
      GrowthPhy = self%Max_uptake*LimLight*LimT*LimN*phy
 
    ! Respiraion of Phy and increase of NUT
@@ -392,10 +395,6 @@ call self%register_diagnostic_variable(self%id_Autolys,'Autolys','mmol/m**3/d', 
    dphy = GrowthPhy-RespPhy-ExcrPhy-MortPhy-GrazPhy
    dhet = self%Uz*(GrazPhy+GrazPOM)-MortHet-RespHet
 !--------------------------------------------------------------
-   ! If an externally maintained DIC pool is present, change the DIC pool according to the
-   ! the change in nutrients (assuming constant C:N ratio)
-   !if (_AVAILABLE_(self%id_dic)) _SET_ODE_(self%id_dic,self%dic_per_n*dnut)
-
 
 !derivatives for FABM
    _SET_ODE_(self%id_oxy,doxy)
@@ -407,7 +406,9 @@ call self%register_diagnostic_variable(self%id_Autolys,'Autolys','mmol/m**3/d', 
    
    ! If an externally maintained DIC pool is present, change the DIC pool according to the
    ! the change in nutrients (assuming constant C:N ratio)
-   if (_AVAILABLE_(self%id_dic)) _SET_ODE_(self%id_dic,self%CtoN*dnut)
+   if (_AVAILABLE_(self%id_dic)) then
+       _SET_ODE_(self%id_dic,self%CtoN*dnut)
+   endif
    !if (_AVAILABLE_(self%id_alk)) _SET_ODE_(self%id_alk,ddom)
    
    ! Export diagnostic variables
@@ -450,7 +451,7 @@ _SET_DIAGNOSTIC_(self%id_Autolys,Autolys)
    _DECLARE_ARGUMENTS_DO_SURFACE_
 
 ! !LOCAL VARIABLES:
-   real(rk)                   :: O2, temp, salt, windspeed
+   real(rk)                   :: O2, temp, salt, windspeed, aice
    real(rk)                   :: Ox, Oa, TempT, Obe, Q_O2
 
    _HORIZONTAL_LOOP_BEGIN_
@@ -458,20 +459,28 @@ _SET_DIAGNOSTIC_(self%id_Autolys,Autolys)
     _GET_(self%id_temp,temp)              ! temperature
     _GET_(self%id_salt,salt)              ! salinity
     _GET_HORIZONTAL_(self%id_windspeed,windspeed)
+    if (self%use_aice) then
+      _GET_HORIZONTAL_(self%id_aice,aice)
+    end if
 
-   Ox = 1953.4-128*temp+3.9918*temp*temp-0.050091*temp*temp*temp !(Wanninkoff, 1992)
-     if (Ox>0) then
-       Oa = 0.028*(windspeed**3.)*sqrt(400/Ox)   !
+   Ox = 1953.4_rk-128._rk*temp+3.9918_rk*temp*temp-0.050091_rk*temp*temp*temp !(Wanninkoff, 1992)
+     if (Ox>0_rk) then
+       Oa = 0.028_rk*(windspeed**3._rk)*sqrt(400_rk/Ox)   !
      else
-       Oa = 0.
+       Oa = 0._rk
      endif
    ! Calculation of O2 saturation Obe according to UNESCO, 1986
-   TempT = (temp+273.15)/100.
-   Obe = exp(-173.4292+249.6339/TempT+143.3483*log(TempT)-21.8492*TempT+salt*(-0.033096+0.014259*TempT-0.0017*TempT*TempT)) !Osat
-   Obe = Obe*1000./22.4  ! convert from ml/l into uM
+   TempT = (temp+273.15_rk)/100._rk
+   Obe = exp(-173.4292_rk+249.6339_rk/TempT+143.3483_rk*log(TempT)-21.8492_rk*TempT &
+             +salt*(-0.033096_rk+0.014259_rk*TempT-0.0017_rk*TempT*TempT)) !Osat
+   Obe = Obe*1000._rk/22.4_rk  ! convert from ml/l into uM
 
 !  Q_O2 = Oa*(Obe-O2)*0.24 ! 0.24 is to convert from [cm/h] to [m/day]
-   Q_O2 = windspeed*(Obe-O2)/86400. !After (Burchard et al., 2005)
+   Q_O2 = windspeed*(Obe-O2)/86400._rk !After (Burchard et al., 2005)
+   
+   if (self%use_aice) then
+       Q_O2 = (1.0_rk-aice)*Q_O2 !Limit flux to area fraction not covered by ice
+   end if
 
   _SET_SURFACE_EXCHANGE_(self%id_oxy,Q_O2)
 
@@ -559,5 +568,45 @@ _HORIZONTAL_LOOP_END_
 
    end function yy
 !EOC
+!-----------------------------------------------------------------------
 
-   end module fabm_niva_oxydep
+!-----------------------------------------------------------------------
+!  Phy temperature limitation
+  
+  real(rk) function f_t(self,temperature)
+    class (type_niva_oxydep),  intent(in):: self
+    real(rk)                ,  intent(in):: temperature
+
+    if (self%phy_t_dependence == 1) then
+      ! ERGOM
+      !   bm = 0.12_rk
+      !   cm = 1.4_rk
+      ! f_t = exp(bm*temperature-cm)
+      f_t = exp(0.12_rk*temperature-1.4_rk)
+    else if (self%phy_t_dependence == 2) then
+      !for Arctic (Moore et al.,2002; Jin et al.,2008)
+      !   t_0           = 0._rk      !reference temperature
+      !   temp_aug_rate = 0.0663_rk  !temperature augmentation rate
+      ! f_t = exp(temp_aug_rate*(temperature-t_0))
+      f_t = exp(0.0663_rk*(temperature-0._rk))
+    else if (self%phy_t_dependence == 3) then
+      !ERSEM
+      !   q10       = 2.0_rk    !Coefficient for uptake rate dependence on t
+      !   t_upt_min = 10.0_rk   !Low  t limit for uptake rate dependence on t
+      !   t_upt_max = 32.0_rk   !High t limit for uptake rate dependence on t
+      ! f_t = q10**((temperature-t_upt_min)/10._rk)-&
+      !       q10**((temperature-t_upt_max)/3._rk)
+      f_t = 2.0_rk**((temperature-10.0_rk)/10._rk)-&
+            2.0_rk**((temperature-32.0_rk)/3._rk)
+    end if
+!   Some others:
+ !      LimT     = self%q10**((t-self%t_upt_min)/10.) - self%q10**((t-self%t_upt_max)/3.) !Dependence on Temperature (ERSEM)
+ !      LimT     = 0.5(1+tanh((t-tmin)/smin)) (1-0.5(1+th((t-tmax)/smax))) !Smin= 15  Smax= 15  Tmin=  10 Tmax= 35 !Dependence on Temperature   (Deb et al., .09)
+ !      LimT     = exp(self%bm*temp-self%cm))        !Dependence on Temperature (used in (Ya,So, 2011) for Arctic)  
+ !      LimT     = 1./(1.+exp(10.-temp))             !Dependence on Temperature (ERGOM for cya)
+ !      LimT     = 1.-temp*temp/(temp*temp +12.*12.) !Dependence on Temperature (ERGOM for dia)
+ !      LimT     = 2.**((temp- 10.)/10.) -2**((temp-32.)/3.) !(ERSEM
+ !      LimT     =q10*(T-20)/10 !Q10=1.88 (Gr., 2000)       
+  end function f_t
+   
+end module fabm_niva_oxydep
