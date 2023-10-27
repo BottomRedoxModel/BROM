@@ -358,8 +358,6 @@ call self%register_diagnostic_variable(self%id_Autolys,'Autolys','mmol/m**3/d', 
         sundec= (23.45_rk*sin((360*(284+yday)/365)*pi/180._rk))*pi/180._rk
    ! Calculate day length as the day' share (i.e. /24)
         daylength = acos(min(1._rk,max(-1._rk,-tan(lat*pi/180._rk)*tan(sundec))))*180_rk/pi*2._rk/15._rk/24._rk
-!        write(*,'(f4.0, a, f7.4, a, f9.4, a, f7.4, a, f7.4, a, f7.4)') yday, " decl=",sundec," dayle=", daylength, &
-!             " tan=",tan(sundec)," 4acos=",-tan(lat*pi/180._rk)*tan(sundec)," acos=",acos(-tan(lat*pi/180._rk)*tan(sundec))
         LimLight = LimLight*(self%gammaD + 0.5_rk)/(self%gammaD + daylength)
      endif
   
