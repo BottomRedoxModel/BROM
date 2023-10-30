@@ -133,11 +133,11 @@
    ! NB: all rates must be provided in values per day,
    ! and are converted here to values per second.
   ! Phy
-   call self%get_parameter(self%Max_uptake,'Max_uptake','1/d', 'Maximum nutrient uptake rate',                               default=5.0_rk,scale_factor=d_per_s)
+   call self%get_parameter(self%Max_uptake,'Max_uptake','1/d', 'Maximum nutrient uptake rate',                               default=5.0_rk,  scale_factor=d_per_s)
    call self%get_parameter(self%Knut,      'Knut',      'nd',  'Half-sat.const. for uptake of NUT by Phy for NUT/Phy ratio', default=0.1_rk)
-   call self%get_parameter(self%Iopt,      'Iopt',      'Watts/m**2/h',              'Optimal irradiance',                   default=25.0_rk)
-   call self%get_parameter(self%alphaI,    'alphaI',    'mg C/mg Chl/h/(umol/m2/s',  'Initial slope of PI-curve',            default=0.767_rk)
-   call self%get_parameter(self%betaI,     'betaI',     'mg C/mg Chl/h/(umol/m2/s',  'Photoinhibition parameter',            default=0.013_rk)
+   call self%get_parameter(self%Iopt,      'Iopt',      'Watt/m2/h',              'Optimal irradiance',                   default=25.0_rk)
+   call self%get_parameter(self%alphaI,    'alphaI',    '1/d/(Watt/m2)',          'Initial slope of PI-curve',            default=0.767_rk,scale_factor=d_per_s)
+   call self%get_parameter(self%betaI,     'betaI',     '1/d/(Watt/m2)',          'Photoinhibition parameter',            default=0.013_rk,scale_factor=d_per_s)
    call self%get_parameter(self%phy_light_dependence, 'phy_light_dependence', '-',   'light dependence for Phy growth',      default=1)
    call self%get_parameter(self%phy_light_daylength,  'phy_light_daylength',  '-',   'influence of daylength at Phy growth', default=1)
    call self%get_parameter(self%gammaD,    'gammaD',    '-',                         'Adaptation to daylength parameter',    default=0.5_rk)
@@ -345,24 +345,22 @@ call self%register_diagnostic_variable(self%id_Autolys,'Autolys','mmol/m**3/d', 
 ! Phy
 !--------------------------------------------------------------
    ! Growth of Phy and uptake of NUT   
-     if (self%phy_light_dependence == 1) then   !Dependence on Irradiance Steel   
-       LimLight = Iz/self%Iopt*exp(1-Iz/self%Iopt)      
-      else if (self%phy_light_dependence == 2) then
-        LimLight = (1._rk-exp(-self%alphaI*Iz/self%Max_uptake))*exp(-self%betaI*Iz/self%Max_uptake) ! (Platt et al., 1980) 
-      else if (self%phy_light_dependence == 3) then
-        LimLight = (1._rk-exp(-self%alphaI*Iz))*exp(-self%betaI*Iz) ! Modiifed (Platt et al., 1980)   
-     endif  
-
-     if (self%phy_light_daylength == 1) then  ! correction for adaptation to day length (cf. Gilstad and Sakshaug 1990)
+   if (self%phy_light_dependence == 1) then   !Dependence on Irradiance 
+     LimLight = Iz/self%Iopt*exp(1-Iz/self%Iopt)                 ! Steel     
+   else if (self%phy_light_dependence == 2) then
+     LimLight = (1._rk-exp(-self%alphaI*Iz/(self%Max_uptake))) & ! units are 1/s !
+                *exp(-self%betaI*Iz/(self%Max_uptake)) ! (Platt et al., 1980) 
+   endif  
+   if (self%phy_light_daylength == 1) then  ! correction for adaptation to day length (cf. Gilstad and Sakshaug 1990)
    ! Earth declination (converted to radians)
-        sundec= (23.45_rk*sin((360*(284+yday)/365)*pi/180._rk))*pi/180._rk
+     sundec= (23.45_rk*sin((360*(284+yday)/365)*pi/180._rk))*pi/180._rk
    ! Calculate day length as the day' share (i.e. /24)
-        daylength = acos(min(1._rk,max(-1._rk,-tan(lat*pi/180._rk)*tan(sundec))))*180_rk/pi*2._rk/15._rk/24._rk
-        LimLight = LimLight*(self%gammaD + 0.5_rk)/(self%gammaD + daylength)
-     endif
+     daylength = acos(min(1._rk,max(-1._rk,-tan(lat*pi/180._rk)*tan(sundec))))*180_rk/pi*2._rk/15._rk/24._rk
+     LimLight = LimLight*(self%gammaD + 0.5_rk)/(self%gammaD + daylength)
+   endif
   
-       LimT     = self%f_t(t)                         !Dependence on Temperature
-       LimN     = yy(self%Knut,nut/(max(0.0001,phy))) !Dependence on nutrients
+      LimT     = self%f_t(t)                         !Dependence on Temperature
+      LimN     = yy(self%Knut,nut/(max(0.0001,phy))) !Dependence on nutrients
 
      GrowthPhy = self%Max_uptake*LimLight*LimT*LimN*phy
 
