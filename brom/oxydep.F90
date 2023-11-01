@@ -292,7 +292,7 @@ call self%register_diagnostic_variable(self%id_Autolys,'Autolys','mmol/m**3/d', 
    real(rk) :: oxy, nut, pom, dom, phy, het, t
    real(rk) :: doxy, dnut, ddom, dpom, dphy, dhet
    real(rk) :: iopt, daylength, sundec, yday, lat
-   real(rk) :: DIC, Alk
+   real(rk) :: DIC, Alk, dAlk, dDIC
  ! Rates of biogeochemical processes
  ! Phy
    real(rk) :: GrowthPhy               ! Nutrient uptake rate (1/d)
@@ -432,9 +432,10 @@ call self%register_diagnostic_variable(self%id_Autolys,'Autolys','mmol/m**3/d', 
 !--------------------------------------------------------------
 ! NUT
 !--------------------------------------------------------------
-   dnut = -GrowthPhy+RespPhy+RespHet+POM_decay_ox+DOM_decay_ox-self%NtoN*(POM_decay_denitr+DOM_decay_denitr)! Decrease of NUT (as NO3+NO2) due to denitrification
-   ddom = ExcrPhy+Autolys-DOM_decay_ox-DOM_decay_denitr+(GrazPhy+GrazPOM)*(1.-self%Uz)*self%Hz &
-         + POM_decay_denitr ! Denitrification of "real" DOM into NH4 will not change state variable DOM (but anammox (not considered here) will)
+   dnut = -GrowthPhy+RespPhy+RespHet+POM_decay_ox+DOM_decay_ox-self%NtoN*(POM_decay_denitr+DOM_decay_denitr)
+            ! Decrease of NUT (as NO3+NO2) due to denitrification
+   ddom = ExcrPhy+Autolys-DOM_decay_ox+(GrazPhy+GrazPOM)*(1.-self%Uz)*self%Hz+POM_decay_denitr 
+            ! Denitrification of "real" DOM into NH4 (DOM_decay_denitr) will not change state variable DOM 
    dpom = MortPhy-Autolys-POM_decay_ox-POM_decay_denitr+(GrazPhy+GrazPOM)*(1.-self%Uz)*(1.-self%Hz)-GrazPOM+MortHet
    dphy = GrowthPhy-RespPhy-ExcrPhy-MortPhy-GrazPhy
    dhet = self%Uz*(GrazPhy+GrazPOM)-MortHet-RespHet
@@ -451,12 +452,19 @@ call self%register_diagnostic_variable(self%id_Autolys,'Autolys','mmol/m**3/d', 
    ! If an externally maintained DIC pool is present, change the DIC pool according to the
    ! the change in nutrients (assuming constant C:N ratio)
  if (_AVAILABLE_(self%id_dic)) then
-   _SET_ODE_(self%id_dic,self%CtoN*(-GrowthPhy+RespPhy+RespHet+POM_decay_ox+DOM_decay_ox+POM_decay_denitr))       
+     dDIC=self%CtoN*(-GrowthPhy+RespPhy+RespHet+POM_decay_ox+DOM_decay_ox)
+   _SET_ODE_(self%id_dic,dDIC)       
  endif
    ! If an externally maintained Alk pool is present, change the Alk 
  if (_AVAILABLE_(self%id_alk)) then    
-    _SET_ODE_(self%id_alk,self%CtoN*(-dnut+ddom)) !Alk increases w
- endif
+     dAlk=( +GrowthPhy+self%NtoN*(POM_decay_denitr+DOM_decay_denitr)&   ! Alk increase if NO3 consumes
+      -RespPhy-RespHet-POM_decay_ox & ! Alk decrease if NO3 produces
+      -2.0_rk*DOM_decay_ox & !nitrification leads to 2 X Alk decrease
+      +POM_decay_denitr    & !denitrification leads to 1 X Alk decrease (Wolf-Gladrow,2007)
+      +ExcrPhy+Autolys+(GrazPhy+GrazPOM)*(1.-self%Uz)*self%Hz &
+          )                 ! Alk increases with an increase of NH4+DOM (i.e. we assume here DOM=orgAlk)
+   _SET_ODE_(self%id_alk,dAlk)
+endif
    ! Export diagnostic variables
 _SET_DIAGNOSTIC_(self%id_MortHet,MortHet)
 _SET_DIAGNOSTIC_(self%id_RespHet,RespHet)
