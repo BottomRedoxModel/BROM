@@ -76,7 +76,7 @@ contains
          xtnc = xEPS*dz
          EIR = buffer/xtnc*(1.0_rk-exp(-xtnc))  ! Note: this computes the vertical average, not the value at the layer centre.
          buffer = buffer*exp(-xtnc)
-           if(dz.le.0.50) then   ! we set zero to light in the sediments...
+           if(dz.le.0.020) then   ! we set zero to light in the sediments defined as where dz<2 cm
                buffer=0.0_rk
            endif
          _SET_DIAGNOSTIC_(self%id_EIR,EIR)                     ! Local shortwave radiation

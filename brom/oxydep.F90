@@ -520,7 +520,7 @@ _SET_DIAGNOSTIC_(self%id_Autolys,Autolys)
     end if
     
 !The total flux (Qnet) as sum of flux through the water surface (Qs),  large bubbles surface (Qb) 
-!      and from collapsing small bubbles (Qi). (McNeil, D�Assaro 2007) Qnet = Qs + Qb + Qi
+!      and from collapsing small bubbles (Qi). (McNeil, D Assaro 2007) Qnet = Qs + Qb + Qi
     
 !Qs followintg NERSEM
 !Sc = 1953.4_rk-128._rk*temp+3.9918_rk*temp*temp-0.050091_rk*temp*temp*temp !(Wanninkoff, 1992) old Sc

@@ -16,6 +16,8 @@ module fabm_niva_brom_bio
 
   implicit none
   private
+  
+    real(rk), parameter :: pi=3.141592653589793_rk
   type,extends(type_base_model),public :: type_niva_brom_bio
     !variables allocated here
     type(type_state_variable_id):: id_Phy,id_Het
@@ -37,6 +39,8 @@ module fabm_niva_brom_bio
     type(type_diagnostic_variable_id):: id_O2_rel_sat,id_O2_sat, id_POMTot,id_DOMTot, id_AOU
 
     type(type_dependency_id):: id_temp,id_salt,id_par,id_pres
+    type (type_horizontal_dependency_id) :: id_lat
+    type (type_global_dependency_id)     :: id_yday            
     type(type_dependency_id):: id_Hplus
     type(type_dependency_id):: id_Wadd
     type (type_horizontal_dependency_id) :: id_windspeed, id_aice
@@ -47,9 +51,12 @@ module fabm_niva_brom_bio
     real(rk):: K_DOML_ox,K_POML_DOML,K_POML_ox,K_POMR_ox
     real(rk):: K_DOMR_ox,K_POMR_DOMR,Tda,beta_da,K_omox_o2
     !----Phy  ----------!
-    real(rk):: K_phy_gro,k_Erlov,Iopt
+    real(rk):: K_phy_gro,k_Erlov,Iopt 
     real(rk):: K_phy_mrt,K_phy_exc,LatLight
-    integer :: phy_t_dependence ! select dependence on T: (1) ERGOM; (2) for Arctic; (3) ERSEM
+    real(rk):: alphaI, betaI, gammaD
+    integer :: phy_t_dependence     ! dependence on T: (1) ERGOM; (2) for Arctic; (3) ERSEM 
+    integer :: phy_light_dependence ! dependence on light: (1) Steel; (2) Platt  
+    integer :: phy_light_daylength  ! daylength matters (1) or not (0)
     !----Het -----------!
     real(rk):: K_het_phy_gro,K_het_phy_lim,K_het_pom_gro,K_het_pom_lim,K_het_bac_gro
     real(rk):: K_het_res,K_het_mrt,Uz,Hz,limGrazBac, s_hmort_H2S
@@ -82,7 +89,8 @@ module fabm_niva_brom_bio
         integer,                    intent(in)            :: configunit
  
  !LOCAL VARIABLES:      
-   real(rk) :: EPS        
+   real(rk) :: EPS   
+   real(rk),parameter ::  d_per_s = 1.0_rk/86400.0_rk     
 
     call self%get_parameter(&
          self%LatLight,'LatLight','degree','Latitude',default=50.0_rk)
@@ -135,16 +143,20 @@ module fabm_niva_brom_bio
     call self%get_parameter(&
          self%Iopt,'Iopt','Watts/m**2/h','Optimal irradiance',&
          default=25.0_rk)
+    call self%get_parameter(self%alphaI,    'alphaI',    '1/d/(Watt/m2)',          'Initial slope of PI-curve',            default=0.767_rk,scale_factor=d_per_s)
+    call self%get_parameter(self%betaI,     'betaI',     '1/d/(Watt/m2)',          'Photoinhibition parameter',            default=0.013_rk,scale_factor=d_per_s)
+    call self%get_parameter(self%phy_light_dependence, 'phy_light_dependence', '-',   'light dependence for Phy growth',      default=1)
+    call self%get_parameter(self%phy_light_daylength,  'phy_light_daylength',  '-',   'influence of daylength at Phy growth', default=1)
+    call self%get_parameter(self%gammaD,    'gammaD',    '-',                         'Adaptation to daylength parameter',    default=0.5_rk)
+    call self%get_parameter(self%phy_t_dependence,'phy_t_dependence','-','T dependence for Phy growth',                       default=1)
+      
     call self%get_parameter(&
          self%K_phy_mrt,'K_phy_mrt','1/d','Specific rate of mortality',&
          default=0.10_rk)
     call self%get_parameter(&
          self%K_phy_exc,'K_phy_exc','1/d','Specific rate of excretion',&
          default=0.01_rk)
-    call self%get_parameter(&
-         self%phy_t_dependence,'phy_t_dependence','-','T dependence fro Phy growth',&
-         default=1)
-    
+
     !----Het----------!
     call self%get_parameter(&
          self%K_het_phy_gro,'K_het_phy_gro','1/d',&
@@ -429,6 +441,7 @@ module fabm_niva_brom_bio
 
         _DECLARE_ARGUMENTS_DO_
         real(rk):: temp,salt,pres,Iz
+        real(rk):: daylength, sundec, yday, lat
         real(rk):: NH4,NO2,NO3,PO4,Phy,Het,H2S,O2,Baae,Baan,Bhae,Bhan
         real(rk):: POML,POMR,DOML,DOMR,Si,Sipart,Alk,Hplus
         real(rk):: LimLight,LimT,LimP,LimNO3,LimNH4,LimN,LimSi
@@ -448,8 +461,10 @@ module fabm_niva_brom_bio
             ! Retrieve current environmental conditions.
             _GET_(self%id_par,Iz) ! local photosynthetically active radiation
             _GET_(self%id_temp,temp) ! temperature
-            _GET_(self%id_salt,salt) ! temperature
+            _GET_(self%id_salt,salt) ! salinity
             _GET_(self%id_pres,pres) ! pressure in dbar
+            _GET_HORIZONTAL_(self%id_lat,lat)  ! latitude in degreese  
+            _GET_GLOBAL_(self%id_yday,yday)    ! Retrieve time since beginning of the year
             ! Retrieve current (local) state variable values.
             !diagnostic
             _GET_(self%id_Hplus,Hplus)
@@ -475,8 +490,20 @@ module fabm_niva_brom_bio
             _GET_(self%id_Sipart,Sipart)
 
             !Phy
-            !Influence of the Irradiance on photosynthesis
-            LimLight = Iz/self%Iopt*exp(1._rk-Iz/self%Iopt)
+            !Influence of the Irradiance on photosynthesis         
+            if (self%phy_light_dependence == 1) then   !Dependence on Irradiance 
+               LimLight = Iz/self%Iopt*exp(1-Iz/self%Iopt)                 ! Steel     
+             else if (self%phy_light_dependence == 2) then
+               LimLight = (1._rk-exp(-self%alphaI*Iz/(self%K_phy_gro))) & ! units are 1/s !
+                          *exp(-self%betaI*Iz/(self%K_phy_gro)) ! (Platt et al., 1980) 
+             endif  
+             if (self%phy_light_daylength == 1) then  ! correction for adaptation to day length (cf. Gilstad and Sakshaug 1990)
+             ! Earth declination (converted to radians)
+               sundec= (23.45_rk*sin((360*(284+yday)/365)*pi/180._rk))*pi/180._rk
+             ! Calculate day length as the day' share (i.e. /24)
+               daylength = acos(min(1._rk,max(-1._rk,-tan(lat*pi/180._rk)*tan(sundec))))*180_rk/pi*2._rk/15._rk/24._rk
+               LimLight = LimLight*(self%gammaD + 0.5_rk)/(self%gammaD + daylength)
+             endif
             !Influence of Temperature on photosynthesis
             LimT = self%f_t(temp)
             !dependence of photosynthesis on P          
