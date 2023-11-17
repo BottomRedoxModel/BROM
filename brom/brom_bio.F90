@@ -143,8 +143,8 @@ module fabm_niva_brom_bio
     call self%get_parameter(&
          self%Iopt,'Iopt','Watts/m**2/h','Optimal irradiance',&
          default=25.0_rk)
-    call self%get_parameter(self%alphaI,    'alphaI',    '1/d/(Watt/m2)',          'Initial slope of PI-curve',            default=0.767_rk,scale_factor=d_per_s)
-    call self%get_parameter(self%betaI,     'betaI',     '1/d/(Watt/m2)',          'Photoinhibition parameter',            default=0.013_rk,scale_factor=d_per_s)
+    call self%get_parameter(self%alphaI,    'alphaI',    '1/d/(Watt/m2)',          'Initial slope of PI-curve',            default=0.767_rk) !,scale_factor=d_per_s)
+    call self%get_parameter(self%betaI,     'betaI',     '1/d/(Watt/m2)',          'Photoinhibition parameter',            default=0.013_rk) !,scale_factor=d_per_s)
     call self%get_parameter(self%phy_light_dependence, 'phy_light_dependence', '-',   'light dependence for Phy growth',      default=1)
     call self%get_parameter(self%phy_light_daylength,  'phy_light_daylength',  '-',   'influence of daylength at Phy growth', default=1)
     call self%get_parameter(self%gammaD,    'gammaD',    '-',                         'Adaptation to daylength parameter',    default=0.5_rk)
@@ -455,7 +455,6 @@ module fabm_niva_brom_bio
         real(rk):: d_NO2,d_NO3,d_PO4,d_Si,d_DIC,d_O2,d_NH4
         real(rk):: d_Sipart,d_Phy,d_Het,d_Baae,d_Baan,d_Bhae,d_Bhan
         real(rk):: d_DOML,d_DOMR,d_POML,d_POMR,kf
-
         ! Enter spatial loops (if any)
         _LOOP_BEGIN_
             ! Retrieve current environmental conditions.
