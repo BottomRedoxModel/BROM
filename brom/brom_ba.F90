@@ -114,7 +114,7 @@
           Om_BaSO4=SO4*Ba/(self%K_BaSO4) 
 !% BaSO4 formation Ba2+ + SO42- -> BaSO4  (Arndt,09)
     baso4_prec = 0.0_rk !self%K_BaSO4_form*max(0._rk,(Om_BaSO4-1._rk))
-!% BaSO4 dissollution  BaSO4  -> Ba2+ + SO42-   (Arndt,09)
+!% BaSO4 dissollution  BaSO4  -> Ba2+ + SO42-   (Arndt,09)
     baso4_diss = 0.0_rk !self%K_BaSO4_diss*BaSO4*max(0._rk,(1._rk-Om_BaSO4))       
 
     _SET_ODE_(self%id_Ba,baso4_diss-baso4_prec+ba_flux)

@@ -26,8 +26,8 @@ module fabm_niva_brom_bubble
    ! diagnostic dependencies
     type(type_dependency_id):: id_pCO2
    !Model parameters
-    real(rk):: W_float !floating
-    real(rk):: K_Bubble_diss, R, P_A, pi, g, TK, N_bub, sigma, Henry, Df, what_gas
+    real(rk):: W_float !floating rate
+    real(rk):: R, P_A, pi, g, TK, N_bub, sigma, Henry, Df, what_gas !K_Bubble_diss, 
     
     contains
         procedure :: initialize
@@ -43,10 +43,10 @@ module fabm_niva_brom_bubble
    !-----Model parameters------
    !Sinking
     call self%get_parameter(self%W_float,&
-      'W_float','[m/day]','Rate of floartng of bubble',  default=5.00_rk)
+      'W_float','[m/day]','Rate of floating of bubble',  default=5.00_rk)
    !Specific rates of biogeochemical processes
-    call self%get_parameter(self%K_Bubble_diss,&
-      'K_Bubble_diss', '[1/d]','K_Bubble_diss', default=100.0_rk)   
+!    call self%get_parameter(self%K_Bubble_diss,&
+!      'K_Bubble_diss', '[1/d]','K_Bubble_diss', default=100.0_rk)   
     call self%get_parameter(self%R,&
       'R', '[(n m)/(TK Mol)]','R', default=8.314_rk)   
     call self%get_parameter(self%P_A,&
@@ -64,7 +64,7 @@ module fabm_niva_brom_bubble
     call self%get_parameter(self%what_gas,&
       'what_gas', '[ - ]', 'what gas in bubbles', default=100000._rk)
     call self%get_parameter(self%Henry,&
-      'Henry', '[ - ]', 'Henry constant', default=100000._rk)   
+      'Henry', '[ - ]', 'Henry constant', default=100000._rk)   !(mmol/m3/Pa)
     call self%get_parameter(self%Df,&
       'Df', '[ m2/s ]', 'CO2 diffusivity', default=0.000001_rk)   
    !Register state variables
@@ -121,16 +121,16 @@ module fabm_niva_brom_bubble
     depth=pressure-10.0_rk
 
     ! volume of all bubbles, 10.3 converts m into pa; 0.001 converts mmol into mol
-    Vol_tot=Bubble*0.001_rk*self%R*(self%TK+temp)/(self%P_A+depth*self%P_A/10.3_rk)
-
+    Vol_tot=Bubble*0.001_rk*self%R*(self%TK+temp)/(self%P_A+depth*self%P_A/10.3_rk)  ![m3]
+!                  mol    x  m3⋅Pa⋅K−1⋅mol−1 x K       /           pa         m*pa/
     ! radius of the bubble:
-    r_bub =(Vol_tot/self%N_bub*3.0_rk/4.0_rk/self%pi)**(1.0_rk/3.0_rk)
+    r_bub =(Vol_tot/self%N_bub*3.0_rk/4.0_rk/self%pi)**(1.0_rk/3.0_rk) ! [m]
 
     ! pressure sigma-tau (kg/m3):
     call svan(salt, temp, depth, sigma_tau)
 
 !real(rk):: Kh_theta,coef_temp,koef_salt,pressure,kh_corrected
-!Henry = 3.3e-4 mol/m3/Pa
+!Henry = 3.3e-4 mol/m3/Pa for CO2
 !kh_theta = 3.3e-4  * 101.325 !mol/Atm 
 !coef_temp = 2400 ![K]
 !koef_salt = 10**(-0.5*0.127) !0.127 L/Mole
@@ -138,22 +138,34 @@ module fabm_niva_brom_bubble
 !kh_corrected = kh_theta * exp(coef_temp*(1/abs_temp - 1/298.15))* 1.e6 * pressure * koef_salt !Micromol/l
 
    ! Henry constant correction for temperature (K), pressure (atm) and "salinity=35psu" (Mol):
-     Henry_corr=self%Henry*exp(2400._rk*(1._rk/(self%TK+temp) - 1._rk/298.15_rk))* 1.e6 * (1._rk + depth/10._rk) * 10**(-0.5*0.127)
+     Henry_corr=self%Henry*exp(2400._rk*(1._rk/(self%TK+temp)-1._rk/298.15_rk)) &
+              *1.e6*(1._rk + depth/10._rk)*10**(-0.5*0.127)  
 
    ! gas-water transfer rate kB (m/s):
-    if (r_bub.ge.0.0025) then
-      k_B =0.065*(self%Df**0.5_rk)
+    if (r_bub.ge.0.0025) then  ! i.e. bubble'diameter=5 mm
+     ! k_B =6.5*(self%Df**0.5_rk)   ! (Zhao, 2016) in cm/s
+      k_B =0.065*(self%Df**0.5_rk) ! (Vielstadte 2019) in m/s
     else
-      k_B =1.13_rk*(0.2_rk/(0.45_rk+40*r_bub))*(self%Df**0.5_rk) 
+      k_B =0.045_rk*((1._rk/(0.45_rk+0.06_rk*100._rk*r_bub)*self%Df)**0.5_rk) ! (Zhao, 2016) in m/s, but r_bub[cm]
+     ! k_B =0.013_rk*((20._rk/(0.45_rk+40._rk*r_bub))*self%Df)**0.5_rk ! (Vielstadte 2019) in m/s
+     ! k_B =0.0113_rk*((20._rk/(0.45_rk+40._rk*r_bub))*self%Df)**0.5_rk ! (Zheng 2002) in m/s, but rbub[m],Df[cm2/s]
+     !k_B =1.13_rk*(0.2_rk/(0.45_rk+40._rk*r_bub))*(self%Df**0.5_rk)  
     endif
 
     if(r_bub.gt.0.000001) then
     ! pressure inside one bubble (Pa):
         P_B = self%P_A + (1000._rk+sigma_tau)*self%g*depth + 2*self%sigma/r_bub
     ! one bubble dissolution:
-      flux1bubble = 4._rk*self%pi*(r_bub)**2._rk *k_B &
-        *(P_B*self%Henry - 101325._rk/1000000.0_rk*pCO2*self%Henry) & !convert pCO2 from uatm into Pa
-        *86400.0_rk ! convert to per day
+        if (self%what_gas.lt.1.0_rk) then ! case CO2
+          flux1bubble = 4._rk*self%pi*(r_bub)**2._rk *k_B &
+           *(P_B*self%Henry - 101325._rk/1000000.0_rk*pCO2*self%Henry) & !convert pCO2 from uatm into Pa
+           *86400.0_rk ! convert to per day
+        else ! case CH4
+          flux1bubble = 4._rk*self%pi*(r_bub)**2._rk *k_B &
+           *(P_B*self%Henry - CH4) & !
+           !*(P_B*Henry_corr - CH4) & !
+           *86400.0_rk ! convert to per day  
+        endif  
     else
       P_B = self%P_A + (1000._rk+sigma_tau)*self%g*depth
       flux1bubble = 0.0_rk
@@ -165,11 +177,11 @@ module fabm_niva_brom_bubble
 
     _SET_ODE_(self%id_Bubble,-d_Bubble)
     if (self%what_gas.lt.1.0_rk) then
-    _SET_ODE_(self%id_DIC, d_Bubble)
-    _SET_ODE_(self%id_CH4, 0.0_rk)
+      _SET_ODE_(self%id_DIC, d_Bubble)
+      _SET_ODE_(self%id_CH4, 0.0_rk)
     else
-    _SET_ODE_(self%id_DIC, 0.0_rk)
-    _SET_ODE_(self%id_CH4, d_Bubble)
+      _SET_ODE_(self%id_DIC, 0.0_rk)
+      _SET_ODE_(self%id_CH4, d_Bubble)
     endif
     _SET_DIAGNOSTIC_(self%id_r_bub,r_bub)
     _SET_DIAGNOSTIC_(self%id_P_B,P_B)

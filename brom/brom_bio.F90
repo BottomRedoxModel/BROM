@@ -16,6 +16,8 @@ module fabm_niva_brom_bio
 
   implicit none
   private
+  
+    real(rk), parameter :: pi=3.141592653589793_rk
   type,extends(type_base_model),public :: type_niva_brom_bio
     !variables allocated here
     type(type_state_variable_id):: id_Phy,id_Het
@@ -37,17 +39,24 @@ module fabm_niva_brom_bio
     type(type_diagnostic_variable_id):: id_O2_rel_sat,id_O2_sat, id_POMTot,id_DOMTot, id_AOU
 
     type(type_dependency_id):: id_temp,id_salt,id_par,id_pres
+    type (type_horizontal_dependency_id) :: id_lat
+    type (type_global_dependency_id)     :: id_yday            
     type(type_dependency_id):: id_Hplus
-    type(type_horizontal_dependency_id):: id_windspeed
+    type(type_dependency_id):: id_Wadd
+    type (type_horizontal_dependency_id) :: id_windspeed, id_aice
+    logical   :: use_aice ! added ice area limitation of air-sea flux, with new switch parameter use_aice.
 
     !Model parameters
     !specific rates of biogeochemical processes
     real(rk):: K_DOML_ox,K_POML_DOML,K_POML_ox,K_POMR_ox
     real(rk):: K_DOMR_ox,K_POMR_DOMR,Tda,beta_da,K_omox_o2
     !----Phy  ----------!
-    real(rk):: K_phy_gro,k_Erlov,Iopt
+    real(rk):: K_phy_gro,k_Erlov,Iopt 
     real(rk):: K_phy_mrt,K_phy_exc,LatLight
-    integer :: phy_t_dependence ! select dependence on T: (1) ERGOM; (2) for Arctic; (3) ERSEM
+    real(rk):: alphaI, betaI, gammaD
+    integer :: phy_t_dependence     ! dependence on T: (1) ERGOM; (2) for Arctic; (3) ERSEM 
+    integer :: phy_light_dependence ! dependence on light: (1) Steel; (2) Platt  
+    integer :: phy_light_daylength  ! daylength matters (1) or not (0)
     !----Het -----------!
     real(rk):: K_het_phy_gro,K_het_phy_lim,K_het_pom_gro,K_het_pom_lim,K_het_bac_gro
     real(rk):: K_het_res,K_het_mrt,Uz,Hz,limGrazBac, s_hmort_H2S
@@ -60,22 +69,28 @@ module fabm_niva_brom_bio
     !---- N, P, Si--!
     real(rk):: K_nox_lim,K_nh4_lim,K_psi,K_nfix,K_po4_lim,K_si_lim
     !---- Sinking---!
-    real(rk):: Wsed,Wphy,Whet
+    real(rk):: Wsed,Wphy,Whet ,Wsed_tot,Wphy_tot,Whet_tot
     !---- Stoichiometric coefficients ----!
-    real(rk):: r_n_p, r_o_n, r_c_n, r_si_n
+    real(rk):: r_n_p, r_o_n, r_c_n, r_si_n      
+    
   contains
     procedure :: initialize
     procedure :: do
     procedure :: do_surface
     procedure :: f_t
     procedure :: graz
-    
+    procedure :: get_vertical_movement
+
     end type
     contains
 
     subroutine initialize(self,configunit)
         class (type_niva_brom_bio), intent(inout), target :: self
         integer,                    intent(in)            :: configunit
+ 
+ !LOCAL VARIABLES:      
+   real(rk) :: EPS   
+   real(rk),parameter ::  d_per_s = 1.0_rk/86400.0_rk     
 
     call self%get_parameter(&
          self%LatLight,'LatLight','degree','Latitude',default=50.0_rk)
@@ -115,6 +130,9 @@ module fabm_niva_brom_bio
          self%Tda,'Tda','[1/day]',&
          'Temperature control coefficient for OM decay',&
          default=13.0_rk)
+
+   call self%get_parameter(self%use_aice, 'use_aice', '', 'use ice area to limit air-sea flux',  default=.false.)
+    
     !----Phy----------!
     call self%get_parameter(&
          self%K_phy_gro,'K_phy_gro','1/d','Maximum specific growth rate',&
@@ -125,15 +143,20 @@ module fabm_niva_brom_bio
     call self%get_parameter(&
          self%Iopt,'Iopt','Watts/m**2/h','Optimal irradiance',&
          default=25.0_rk)
+    call self%get_parameter(self%alphaI,    'alphaI',    '1/d/(Watt/m2)',          'Initial slope of PI-curve',            default=0.767_rk) !,scale_factor=d_per_s)
+    call self%get_parameter(self%betaI,     'betaI',     '1/d/(Watt/m2)',          'Photoinhibition parameter',            default=0.013_rk) !,scale_factor=d_per_s)
+    call self%get_parameter(self%phy_light_dependence, 'phy_light_dependence', '-',   'light dependence for Phy growth',      default=1)
+    call self%get_parameter(self%phy_light_daylength,  'phy_light_daylength',  '-',   'influence of daylength at Phy growth', default=1)
+    call self%get_parameter(self%gammaD,    'gammaD',    '-',                         'Adaptation to daylength parameter',    default=0.5_rk)
+    call self%get_parameter(self%phy_t_dependence,'phy_t_dependence','-','T dependence for Phy growth',                       default=1)
+      
     call self%get_parameter(&
          self%K_phy_mrt,'K_phy_mrt','1/d','Specific rate of mortality',&
          default=0.10_rk)
     call self%get_parameter(&
          self%K_phy_exc,'K_phy_exc','1/d','Specific rate of excretion',&
          default=0.01_rk)
-    call self%get_parameter(&
-         self%phy_t_dependence,'phy_t_dependence','-','T dependence fro Phy growth',&
-         default=1)
+
     !----Het----------!
     call self%get_parameter(&
          self%K_het_phy_gro,'K_het_phy_gro','1/d',&
@@ -179,6 +202,7 @@ module fabm_niva_brom_bio
          self%limGrazBac,'limGrazBac','mmol/m**3',&
          'Limiting parameter for bacteria grazing by Het',&
          default=2._rk)
+    
     !----N---------------
     call self%get_parameter(&
          self%K_psi,'K_psi','[nd]',&
@@ -196,16 +220,19 @@ module fabm_niva_brom_bio
          self%K_nfix,'K_nfix','[1/d]',&
          'Max. specific rate of mitrogen fixation',&
          default=10._rk)
+    
     !----P---------------
     call self%get_parameter(&
          self%K_po4_lim,'K_po4_lim','[mmol/m**3]',&
          'Half-sat. constant for uptake of PO4 by Phy',&
          default=0.02_rk)
+    
     !----Si-------------
     call self%get_parameter(&
          self%K_si_lim,'K_si_lim','[mmol/m**3]',&
          'Half-sat. constant for uptake of Si by Phy',&
          default=0.02_rk)
+    
     !----Sinking--------
     call self%get_parameter(&
          self%Wsed,'Wsed','[1/day]',&
@@ -219,35 +246,55 @@ module fabm_niva_brom_bio
          self%Whet,'Whet','[m/day]',&
          'Rate of sinking of Het',&
          default=1.00_rk)
+    call self%get_parameter(&
+         self%Wphy_tot,'Wphy_tot','[1/day]',&
+         'Total accelerated sinking with absorbed Mn hydroxides',&
+          default=0.10_rk)
+    call self%get_parameter(&
+         self%Whet_tot,'Whet_tot','[1/day]',&
+         'Total accelerated sinking with absorbed Mn hydroxides',&
+          default=1.0_rk)
+    call self%get_parameter(&
+         self%Wsed_tot,'Wsed_tot','[1/day]',&
+         'Total accelerated sinking with absorbed Mn hydroxides',&
+          default=5.0_rk)
+    
     !----Stoichiometric coefficients----!
-    call self%get_parameter(self%r_n_p,'r_n_p','[-]','N[uM]/P[uM]',&
-                            default=16.0_rk)
-    call self%get_parameter(self%r_o_n,'r_o_n','[-]','O[uM]/N[uM]',&
-                            default=6.625_rk)
-    call self%get_parameter(self%r_c_n,'r_c_n','[-]','C[uM]/N[uM]',&
-                            default=6.625_rk)
-    call self%get_parameter(self%r_si_n,'r_si_n','[-]','Si[uM]/N[uM]',&
-                            default=1.0_rk)
+    call self%get_parameter(self%r_n_p,'r_n_p','[-]','N[uM]/P[uM]', default=16.0_rk)
+    call self%get_parameter(self%r_o_n,'r_o_n','[-]','O[uM]/N[uM]', default=6.625_rk)
+    call self%get_parameter(self%r_c_n,'r_c_n','[-]','C[uM]/N[uM]', default=6.625_rk)
+    call self%get_parameter(self%r_si_n,'r_si_n','[-]','Si[uM]/N[uM]', default=1.0_rk)
+    
+!   call self%get_parameter(self%transmodel, 'transmodel', 'na', 'Type of transport model', default=0.0_rk)
+   call self%get_parameter(EPS, 'EPS', 'm^2/mg C', 'specific shortwave attenuation', default=2.208E-3_rk)     
+    
+    
     !Register state variables
     call self%register_state_variable(&
          self%id_Phy,'Phy','mmol/m**3','Phy',&
-         minimum=0.0001_rk,initial_value=0.0001_rk,&
-         vertical_movement=-self%Wphy/86400._rk)
+         minimum=0.0001_rk,initial_value=0.0001_rk)
     call self%register_state_variable(&
-         self%id_Het,'Het','mmol/m**3','Het',minimum=0.0_rk,&
-         vertical_movement=-self%Whet/86400._rk)
+         self%id_Het,'Het','mmol/m**3','Het',minimum=0.0_rk)
     call self%register_state_variable(&
-         self%id_POML,'POML','mmol/m**3','POML labile',minimum=0.0_rk,&
-         vertical_movement=-self%Wsed/86400._rk)
+         self%id_POML,'POML','mmol/m**3','POML labile',minimum=0.0_rk)
     call self%register_state_variable(&
-         self%id_POMR,'POMR','mmol/m**3','POMR semi-labile',minimum=0.0_rk,&
-         vertical_movement=-self%Wsed/86400._rk)
+         self%id_POMR,'POMR','mmol/m**3','POMR semi-labile',minimum=0.0_rk)
     call self%register_state_variable(&
          self%id_DOML,'DOML','mmol/m**3','DOML labile',minimum=0.0_rk)
     call self%register_state_variable(&
          self%id_DOMR,'DOMR','mmol/m**3','DOMR semi-labile',minimum=0.0_rk)
     call self%register_state_variable(&
          self%id_O2,'O2','mmol/m**3','O2',minimum=0.0_rk)
+   ! Register contribution to light extinction
+   call self%add_to_aggregate_variable(standard_variables%attenuation_coefficient_of_photosynthetic_radiative_flux, &
+        self%id_Phy,scale_factor=EPS,include_background=.true.)
+   call self%add_to_aggregate_variable(standard_variables%attenuation_coefficient_of_photosynthetic_radiative_flux, &                                       
+        self%id_Het,scale_factor=EPS,include_background=.true.)
+   call self%add_to_aggregate_variable(standard_variables%attenuation_coefficient_of_photosynthetic_radiative_flux,&
+        self%id_POML,scale_factor=EPS,include_background=.true.)
+   call self%add_to_aggregate_variable(standard_variables%attenuation_coefficient_of_photosynthetic_radiative_flux,&
+        self%id_POMR,scale_factor=EPS,include_background=.true.)
+    
     !Register state dependencies
     call self%register_state_dependency(&
          self%id_PO4,'PO4','mmol/m**3','PO4')
@@ -275,10 +322,14 @@ module fabm_niva_brom_bio
          self%id_Baan,'Baan','mmol/m**3','anaerobic aurotrophic bacteria')
     call self%register_state_dependency(&
          self%id_Bhan,'Bhan','mmol/m**3','anaerobic heterotrophic bacteria')
+    
     !diagnostic dependency
     call self%register_dependency(&
          self%id_Hplus,'Hplus','mmol/m**3','H+ hydrogen')
-    !Register diagnostic variables 
+    call self%register_dependency(self%id_Wadd,'Wadd','[1/day]',&
+         'Additional sinking velocity via Mn4 adsorptoin')
+    
+    !Register diagnostic variables
     call self%register_diagnostic_variable(&
          self%id_DcPOML_O2,'DcPOML_O2','mmol/m**3',&
          'POML with O2 mineralization',output=output_time_step_integrated)
@@ -370,18 +421,15 @@ module fabm_niva_brom_bio
     call self%register_diagnostic_variable(&
          self%id_POMTot,'POMTot','mmol/m**3',&
          'POMTot: refractory+labile',output=output_time_step_integrated)
+    
     !Register environmental dependencies
-    call self%register_dependency(&
-         self%id_par,&
-         standard_variables%downwelling_photosynthetic_radiative_flux)
-    call self%register_dependency(&
-         self%id_temp,standard_variables%temperature)
-    call self%register_dependency(&
-         self%id_pres,standard_variables%pressure)
-    call self%register_dependency(&
-         self%id_salt,standard_variables%practical_salinity)
-    call self%register_dependency(&
-         self%id_windspeed,standard_variables%wind_speed)
+    call self%register_dependency(self%id_pres,standard_variables%pressure)
+    call self%register_dependency(self%id_temp,standard_variables%temperature)
+    call self%register_dependency(self%id_salt,standard_variables%practical_salinity)
+    call self%register_dependency(self%id_windspeed,standard_variables%wind_speed)
+    call self%register_dependency(self%id_par,standard_variables%downwelling_photosynthetic_radiative_flux)
+   if (self%use_aice) call self%register_horizontal_dependency(self%id_aice,type_horizontal_standard_variable(name='aice'))
+    
     !Specify that are rates computed in this module are per day
     !(default: per second)
     self%dt = 86400._rk
@@ -393,6 +441,7 @@ module fabm_niva_brom_bio
 
         _DECLARE_ARGUMENTS_DO_
         real(rk):: temp,salt,pres,Iz
+        real(rk):: daylength, sundec, yday, lat
         real(rk):: NH4,NO2,NO3,PO4,Phy,Het,H2S,O2,Baae,Baan,Bhae,Bhan
         real(rk):: POML,POMR,DOML,DOMR,Si,Sipart,Alk,Hplus
         real(rk):: LimLight,LimT,LimP,LimNO3,LimNH4,LimN,LimSi
@@ -406,14 +455,15 @@ module fabm_niva_brom_bio
         real(rk):: d_NO2,d_NO3,d_PO4,d_Si,d_DIC,d_O2,d_NH4
         real(rk):: d_Sipart,d_Phy,d_Het,d_Baae,d_Baan,d_Bhae,d_Bhan
         real(rk):: d_DOML,d_DOMR,d_POML,d_POMR,kf
-
         ! Enter spatial loops (if any)
         _LOOP_BEGIN_
             ! Retrieve current environmental conditions.
             _GET_(self%id_par,Iz) ! local photosynthetically active radiation
             _GET_(self%id_temp,temp) ! temperature
-            _GET_(self%id_salt,salt) ! temperature
+            _GET_(self%id_salt,salt) ! salinity
             _GET_(self%id_pres,pres) ! pressure in dbar
+            _GET_HORIZONTAL_(self%id_lat,lat)  ! latitude in degreese  
+            _GET_GLOBAL_(self%id_yday,yday)    ! Retrieve time since beginning of the year
             ! Retrieve current (local) state variable values.
             !diagnostic
             _GET_(self%id_Hplus,Hplus)
@@ -439,8 +489,20 @@ module fabm_niva_brom_bio
             _GET_(self%id_Sipart,Sipart)
 
             !Phy
-            !Influence of the Irradiance on photosynthesis
-            LimLight = Iz/self%Iopt*exp(1._rk-Iz/self%Iopt)
+            !Influence of the Irradiance on photosynthesis         
+            if (self%phy_light_dependence == 1) then   !Dependence on Irradiance 
+               LimLight = Iz/self%Iopt*exp(1-Iz/self%Iopt)                 ! Steel     
+             else if (self%phy_light_dependence == 2) then
+               LimLight = (1._rk-exp(-self%alphaI*Iz/(self%K_phy_gro))) & ! units are 1/s !
+                          *exp(-self%betaI*Iz/(self%K_phy_gro)) ! (Platt et al., 1980) 
+             endif  
+             if (self%phy_light_daylength == 1) then  ! correction for adaptation to day length (cf. Gilstad and Sakshaug 1990)
+             ! Earth declination (converted to radians)
+               sundec= (23.45_rk*sin((360*(284+yday)/365)*pi/180._rk))*pi/180._rk
+             ! Calculate day length as the day' share (i.e. /24)
+               daylength = acos(min(1._rk,max(-1._rk,-tan(lat*pi/180._rk)*tan(sundec))))*180_rk/pi*2._rk/15._rk/24._rk
+               LimLight = LimLight*(self%gammaD + 0.5_rk)/(self%gammaD + daylength)
+             endif
             !Influence of Temperature on photosynthesis
             LimT = self%f_t(temp)
             !dependence of photosynthesis on P          
@@ -746,4 +808,27 @@ module fabm_niva_brom_bio
         thr_l = 0.5-0.5*tanh((var_conc-threshold_value)*koef)
     end function 
 
+  ! Set increased manganese sinking via MnIV and MnIII oxides formation
+  subroutine get_vertical_movement(self, _ARGUMENTS_GET_VERTICAL_MOVEMENT_)
+     class (type_niva_brom_bio), intent(in) :: self
+     _DECLARE_ARGUMENTS_GET_VERTICAL_MOVEMENT_
+     
+     real(rk) :: Wadd, Wphy_tot, Whet_tot, Wsed_tot
+          
+     _LOOP_BEGIN_
+  
+      _GET_(self%id_Wadd,Wadd)
+     
+      Wphy_tot = self%Wphy + 0.25_rk * Wadd
+      Whet_tot = self%Whet + 0.5_rk * Wadd
+      Wsed_tot = self%Wsed + Wadd
+      
+      _ADD_VERTICAL_VELOCITY_(self%id_Phy, Wphy_tot)
+      _ADD_VERTICAL_VELOCITY_(self%id_Het, Whet_tot)
+      _ADD_VERTICAL_VELOCITY_(self%id_POML, Wsed_tot)
+      _ADD_VERTICAL_VELOCITY_(self%id_POMR, Wsed_tot)
+  
+     _LOOP_END_
+  
+  end subroutine get_vertical_movement
 end module fabm_niva_brom_bio

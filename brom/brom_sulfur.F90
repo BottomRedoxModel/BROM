@@ -30,6 +30,10 @@ module fabm_niva_brom_sulfur
     type(type_diagnostic_variable_id):: id_s0_ox,id_s2o3_ox
     type(type_diagnostic_variable_id):: id_s0_disp,id_hs_ox
     type(type_diagnostic_variable_id):: id_hs_no3,id_s2o3_rd,id_so4_rd
+    
+    ! diagnostic dependencies
+    type(type_dependency_id):: id_Wadd
+    
     !Model parameters
     !specific rates of biogeochemical processes
     real(rk):: K_s0_disp,K_hs_ox,K_s0_ox,K_s0_no3
@@ -40,9 +44,13 @@ module fabm_niva_brom_sulfur
     real(rk):: s_omso_o2,s_omso_no3,s_OM_refr
     !---- Stoichiometric coefficients ----!
     real(rk):: r_c_n,r_n_p,r_n_s
+    !sinking
+    real(rk):: WS0 , WS0_tot
   contains
     procedure :: initialize
     procedure :: do
+    procedure :: get_vertical_movement
+
   end type
 contains
   !
@@ -140,6 +148,15 @@ contains
          self%r_n_s,   'r_n_s',  '[-]',&
          'N[uM]/S[uM]',&
          default=0.302_rk)
+    !----Sinking----!
+    call self%get_parameter(&
+         self%WS0,'WS0','1/day',&
+         'S particles sinking rate',&
+          default=0.0_rk)
+    call self%get_parameter(&
+         self%WS0_tot,'WS0_tot','[1/day]',&
+         'Total accelerated sinking with absorbed Mn hydroxides',&
+          default=0.0_rk)
 
     !Register state variables
     call self%register_state_variable(&
@@ -267,6 +284,9 @@ contains
          self%id_hs_no3,'hs_no3','mmol/m**3',&
          'H2S with NO3 oxidation',&
          output=output_time_step_integrated)
+    !Register diagnostic dependencies
+    call self%register_dependency(self%id_Wadd,'Wadd','[1/day]',&
+         'Additional sinking velocity via Mn4 adsorptoin')
 
     !Specify that are rates computed in this module are per day
     !(default: per second)
@@ -443,4 +463,24 @@ contains
       _SET_DIAGNOSTIC_(self%id_hs_no3,hs_no3)
     _LOOP_END_
   end subroutine do
+  
+    ! Set increased manganese sinking via MnIV and MnIII oxides formation
+  subroutine get_vertical_movement(self, _ARGUMENTS_GET_VERTICAL_MOVEMENT_)
+     class (type_niva_brom_sulfur), intent(in) :: self
+     _DECLARE_ARGUMENTS_GET_VERTICAL_MOVEMENT_
+     
+     real(rk) :: Wadd, WS0_tot
+          
+     _LOOP_BEGIN_
+  
+      _GET_(self%id_Wadd,Wadd)
+     
+      WS0_tot = self%WS0 + Wadd 
+  
+      _ADD_VERTICAL_VELOCITY_(self%id_S0, WS0_tot)
+  
+     _LOOP_END_
+  
+  end subroutine get_vertical_movement
+
 end module fabm_niva_brom_sulfur

@@ -22,12 +22,16 @@ module fabm_niva_brom_ph
     !all descriptions are in the initialize subroutine
     type(type_diagnostic_variable_id) :: id_pH,id_Hplus
     !standard variables dependencies
-    type(type_dependency_id):: id_salt
+    type(type_dependency_id):: id_temp,id_salt
     !diagnosric variables dependencies
     type(type_dependency_id):: id_Kc1,id_Kc2,id_Kb
     type(type_dependency_id):: id_Kp1,id_Kp2,id_Kp3,id_KSi
     type(type_dependency_id):: id_Knh4,id_Kh2s,id_kso4,id_kflu
     type(type_dependency_id):: id_Kw,id_tot_free
+    logical :: Alk_from_Sal ! switch parameter for calculation of total Alk from  (true/false)
+    logical :: SO4_from_Sal ! switch parameter for calculation of SO4 from salinity (true/false)
+    logical :: Sal_from_Alk ! switch parameter for calculation of salinity from total Alk (true/false)
+    
   contains
     procedure :: initialize
     procedure :: do
@@ -40,6 +44,13 @@ contains
     class(type_niva_brom_ph),intent(inout),target :: self
     integer,                 intent(in)           :: configunit
 
+    call self%get_parameter(self%Alk_from_Sal,'Alk_from_Sal', &
+        '[ - ]','calculate Alk from Salinity', default=.false.)
+    call self%get_parameter(self%SO4_from_Sal,'SO4_from_Sal', &
+        '[ - ]','calculate SO4 from Salinity', default=.false.)
+    call self%get_parameter(self%Sal_from_Alk,'Sal_from_Alk', &
+        '[ - ]','calculate Salinity from Alk', default=.false.)
+  
     !Register state dependencies
     call self%register_state_dependency(&
          self%id_DIC,'DIC','mmol/m**3',&
@@ -67,6 +78,8 @@ contains
     !Register standard dependencies
     call self%register_dependency(&
          self%id_salt,standard_variables%practical_salinity)
+    call self%register_dependency(&
+         self%id_temp,standard_variables%temperature)
 
     !Register diagnostic dependencies
     call self%register_dependency(&
@@ -92,7 +105,8 @@ contains
     call self%register_dependency(&
          self%id_Kw, 'Kw','-','[H+][OH-]/H2O')
     call self%register_dependency(&
-         self%id_tot_free,'tot_free','-','ratio H_Tot/H_free')
+         self%id_tot_free,'tot_free','-','ratio H_Tot/H_free')    
+    
   end subroutine initialize
   !
   !does we need to recalculate concentrations from mmol/m3 to mol/kg?
@@ -101,7 +115,7 @@ contains
     class (type_niva_brom_ph),intent(in) :: self
 
     _DECLARE_ARGUMENTS_DO_
-    real(rk):: salt
+    real(rk):: temp,salt
     real(rk):: DIC,Alk,PO4,Si,NH4,H2S,SO4
     real(rk):: Kc1,Kc2,Kb,Kp1,Kp2,Kp3,KSi
     real(rk):: Knh4,Kh2s,kso4,kflu,Kw,tot_free
@@ -110,6 +124,7 @@ contains
 
     _LOOP_BEGIN_
       ! Environment
+      _GET_(self%id_temp,temp) !temperature
       _GET_(self%id_salt,salt) !salinity
       ! state variables
       _GET_(self%id_Alk,Alk)
@@ -135,6 +150,21 @@ contains
       _GET_(self%id_Kw,   Kw)
       _GET_(self%id_tot_free, tot_free)
 
+      !returns total alkalinity as a function of salinity if prescribed
+       if (self%Alk_from_Sal) then      
+      !References:
+      ! (Lee et al., 2006) for N.Atlantic mmol/kg
+       !  Alk = 2305._rk + 53.97_rk*(salt-35._rk) + 2.74_rk*(salt-35._rk)*(salt-35._rk) &
+       !      - 1.16_rk*(temp-20._rk)-0.040_rk*(temp -20_rk)*(temp -20_rk)
+       !  Alk = salt*59.88_rk+278.79_rk  ! ???
+         Alk = salt*0.068_rk*1000._rk   !Murray, 2014
+       endif  
+       
+       ! calculation of salinity from total Alk (to calculate AB, AF and SO4 ot influenced by salinity) 
+       if (self%Sal_from_Alk) then
+         salt = Alk/0.068_rk/1000._rk   !Murray, 2014
+       endif  
+           
       !returns total borate concentration in mol/kg-SW
       !References:
       ! Uppstrom (1974),cited by Dickson et al.(2007,chapter 5,p 10)
@@ -142,19 +172,23 @@ contains
       !pH scale  : N/A
       Bt = 0.000416_rk*(salt/35._rk)
       Bt = Bt*(1027._rk/1000._rk)*1.e6_rk !mmol/m3
-
-      !returns total sulfate concentration in mol/kg-SW
-      !References:
-      ! Morris A.W. and Riley, J.P. (1966) quoted in Dickson et al. (2007)
-      ! pH scale  : N/A
-      !SO4 = (0.1400_rk/96.062_rk)*(salt/1.80655_rk)
-      !SO4 = SO4*(1027._rk/1000._rk)*1.e6_rk !mmol/m3
-
+      
       !returns total fluoride concentration in mol/kg-SW
       !References: Culkin (1965) (???)
       !pH scale  : N/A
       flutot = 0.000068_rk*(salt/35._rk)
       flutot = flutot*(1027._rk/1000._rk)*1.e6_rk !mmol/m3
+      
+      !returns total sulfate concentration in mol/kg-SW
+       if(self%SO4_from_Sal) then
+      !References:
+      ! Morris A.W. and Riley, J.P. (1966) quoted in Dickson et al. (2007)
+      ! pH scale  : N/A
+         SO4 = (0.1400_rk/96.062_rk)*(salt/1.80655_rk)
+         SO4 = SO4*(1027._rk/1000._rk)*1.e6_rk !mmol/m3
+       endif  
+
+!-----------------------------------------------------------------
       H_ = ph_solver(Alk, DIC, Bt, &
                      PO4, Si, NH4, H2S, SO4, flutot, &
                      kc1, kc2, kb, kp1, kp2, kp3, ksi, Knh4, Kh2s, &
