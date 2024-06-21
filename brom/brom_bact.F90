@@ -361,7 +361,7 @@ contains
                 *(0.5_rk*(1._rk-tanh(1._rk-H2S))))*Baae*Baae
       !aerobic heterotroph
       HetBhae = DcTOM_O2 &
-               *self%K_Bhae_gro*Bhae*yy(self%limBhae,DOML/(Bhae+0.0001_rk))
+               *self%K_Bhae_gro*Bhae*yy(self%limBhae,(DOML+DOMR)/(Bhae+0.0001_rk))
       MortBhae = (self%K_Bhae_mrt+ self%K_Bhae_mrt_h2s&
                *(0.5_rk*(1._rk-tanh(1._rk-H2S))))*Bhae
       !ANOXIC CONDITIONS
