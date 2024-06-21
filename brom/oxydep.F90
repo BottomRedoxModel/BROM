@@ -291,7 +291,7 @@ call self%register_diagnostic_variable(self%id_Autolys,'Autolys','mmol/m**3/d', 
 ! !LOCAL VARIABLES:
    real(rk) :: oxy, nut, pom, dom, phy, het, t
    real(rk) :: doxy, dnut, ddom, dpom, dphy, dhet
-   real(rk) :: iopt, daylength, sundec, yday, lat
+   real(rk) :: daylength, sundec, yday, lat
    real(rk) :: DIC, Alk, dAlk, dDIC
  ! Rates of biogeochemical processes
  ! Phy
@@ -346,7 +346,7 @@ call self%register_diagnostic_variable(self%id_Autolys,'Autolys','mmol/m**3/d', 
 !--------------------------------------------------------------
    ! Growth of Phy and uptake of NUT   
    if (self%phy_light_dependence == 1) then   !Dependence on Irradiance 
-     LimLight = Iz/self%Iopt*exp(1-Iz/self%Iopt)                 ! Steel     
+     LimLight = Iz/self%Iopt*exp(1._rk-Iz/self%Iopt)                 ! Steel     
    else if (self%phy_light_dependence == 2) then
      LimLight = (1._rk-exp(-self%alphaI*Iz/(self%Max_uptake))) & ! units are 1/s !
                 *exp(-self%betaI*Iz/(self%Max_uptake)) ! (Platt et al., 1980) 
@@ -614,7 +614,7 @@ _HORIZONTAL_LOOP_END_
 
        ! UPWARD flux of DOM (DON+NH4) dependent on redox conditions:
        !---  in suboxic conditions dom is additionally released from the sediments (doubles)
-       _SET_BOTTOM_EXCHANGE_(self%id_dom,(F_ox(oxy,self%O2_suboxic)*(self%b_dom_ox-dom)+F_subox(oxy,self%O2_suboxic)*(2._rk*self%b_dom_ox-dom))/self%Trel)
+       _SET_BOTTOM_EXCHANGE_(self%id_dom,(F_ox(oxy,self%O2_suboxic)*(self%b_dom_ox-dom)+F_subox(oxy,self%O2_suboxic)*(2._rk*self%b_dom_anox-dom))/self%Trel)
 
     endif
    _HORIZONTAL_LOOP_END_
