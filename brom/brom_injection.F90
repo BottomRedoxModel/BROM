@@ -108,9 +108,9 @@
    call self%register_state_dependency(self%id_pom,'POM','mmol/m**3','POM')
    call self%register_state_dependency(self%id_nut,'NUT','mmol/m**3','NUT')
    call self%register_state_dependency(self%id_dom,'DOM','mmol/m**3','DOM')
-   !call self%register_state_dependency(self%id_po4,'PO4','mmol/m**3','PO4')
-   !call self%register_state_dependency(self%id_nh4,'NH4','mmol/m**3','NH4')
-   !call self%register_state_dependency(self%id_dic,'DIC','mmol/m**3','DIC')
+   call self%register_state_dependency(self%id_po4,'PO4','mmol/m**3','PO4')
+   call self%register_state_dependency(self%id_nh4,'NH4','mmol/m**3','NH4')
+   call self%register_state_dependency(self%id_dic,'DIC','mmol/m**3','DIC')
    ! Register diagnostic variables
    call self%register_diagnostic_variable(self%id_waste_decomp,'waste_decomp', &
            'mmol/m**3/d',  'waste_decomp,  Decomposition of waste',&
@@ -157,7 +157,7 @@
 !  Original author(s):
 !
 ! !LOCAL VARIABLES:
-   real(rk) ::  waste,  oxy,  pom,  nut, po4, nh4, dom, dic
+   real(rk) ::  waste, oxy, nut, po4, nh4, dic, pom, dom
    real(rk) :: dwaste, dpom, ddom
  ! external parameters   
    real(rk) :: t, depth,long, thickness
@@ -178,9 +178,9 @@
    _GET_(self%id_pom,pom)
    _GET_(self%id_nut,nut)
    _GET_(self%id_dom,dom)
-   !_GET_(self%id_po4,po4)
-   !_GET_(self%id_nh4,nh4)
-   !_GET_(self%id_dic,dic)
+   _GET_(self%id_po4,po4)
+   _GET_(self%id_nh4,nh4)
+   _GET_(self%id_dic,dic)
 
    ! Retrieve current environmental conditions.
    _GET_(self%id_temp,t)                ! temperature
@@ -203,10 +203,7 @@
 
 !if (waste.gt.0.01) write (*,*) waste, waste_decomp
 ! Now we can summarize processes and write state variables sink/sources:
-!--------------------------------------------------------------
-! OXY
-!--------------------------------------------------------------
-! Changes of OXY due to OM production and decay!
+
    dwaste = -waste_decomp-waste_miner-waste_diss
    dpom   =  waste_decomp
    ddom   =  waste_diss
@@ -217,11 +214,10 @@
    _SET_ODE_(self%id_pom,  dpom)
    _SET_ODE_(self%id_dom,  ddom)
    _SET_ODE_(self%id_nut,  waste_miner) ! case OXYDEP
-!   _SET_ODE_(self%id_nh4,  waste_miner)! case FABM
-!   _SET_ODE_(self%id_po4,  waste_miner/16.0_rk)! case FABM
-!   _SET_ODE_(self%id_dic,  waste_miner*6.625_rk)! case FABM
+   _SET_ODE_(self%id_nh4,  waste_miner)! case FABM
+   _SET_ODE_(self%id_po4,  waste_miner/16.0_rk)! case FABM
+   _SET_ODE_(self%id_dic,  waste_miner*6.625_rk)! case FABM
    _SET_ODE_(self%id_oxy,  -6.625*waste_miner)
-
 
    ! Export diagnostic variables
 _SET_DIAGNOSTIC_(self%id_waste_decomp,waste_decomp)
@@ -235,30 +231,30 @@ _SET_DIAGNOSTIC_(self%id_waste_diss,waste_diss)
 !-----------------------------------------------------------------------
 !BOP
 !
-! !IROUTINE:
+! !IROUTINE: NEEDED IN CASE OF USING WITH 3D MODELS !!!! (not 2DBP)
 !
 ! !INTERFACE:
-   subroutine do_bottom(self,_ARGUMENTS_DO_BOTTOM_)
+!   subroutine do_bottom(self,_ARGUMENTS_DO_BOTTOM_)
 !
 ! !DESCRIPTION:
 !
 
 ! !INPUT PARAMETERS:
-   class (type_niva_brom_injection),intent(in) :: self
-   _DECLARE_ARGUMENTS_DO_BOTTOM_
+!   class (type_niva_brom_injection),intent(in) :: self
+!   _DECLARE_ARGUMENTS_DO_BOTTOM_
 !
 ! !LOCAL VARIABLES:
-   real(rk)                   :: waste
+!   real(rk)                   :: waste
 
-   _HORIZONTAL_LOOP_BEGIN_
-   _GET_(self%id_waste,waste)
+!   _HORIZONTAL_LOOP_BEGIN_
+!   _GET_(self%id_waste,waste)
 
    ! BURYING into the sediments, mmol/m2/s (sinking rates "Wxxx" are in m/s and positive upward)
-   _SET_BOTTOM_EXCHANGE_(self%id_waste,self%Bu*self%Wwaste*waste)
+!   _SET_BOTTOM_EXCHANGE_(self%id_waste,self%Bu*self%Wwaste*waste)
 
-   _HORIZONTAL_LOOP_END_
+!   _HORIZONTAL_LOOP_END_
 
-   end subroutine
+!   end subroutine
 !-----------------------------------------------------------------------
   !
   ! Original author(s): Hans Burchard, Karsten Bolding
