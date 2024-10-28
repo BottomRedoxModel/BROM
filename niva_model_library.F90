@@ -31,7 +31,7 @@ contains
       use fabm_niva_brom_methane
       use fabm_niva_brom_ni
       use fabm_niva_brom_nitrogen
-      use fabm_niva_brom_partitioning
+      use fabm_niva_brom_partit
       use fabm_niva_brom_pH
       use fabm_niva_brom_salt
       use fabm_niva_brom_silicon
@@ -68,7 +68,7 @@ contains
          case ('brom_methane');       allocate(type_niva_brom_methane::model)
          case ('brom_ni');            allocate(type_niva_brom_ni::model)
          case ('brom_nitrogen');      allocate(type_niva_brom_nitrogen::model)
-         case ('brom_partitioning');  allocate(type_niva_brom_partitioning::model)
+         case ('brom_partit');        allocate(type_niva_brom_partit::model)
          case ('brom_pH');            allocate(type_niva_brom_pH::model)
          case ('brom_salt');          allocate(type_niva_brom_salt::model)
          case ('brom_silicon');       allocate(type_niva_brom_silicon::model)
