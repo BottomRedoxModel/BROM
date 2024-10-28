@@ -14,7 +14,7 @@ add_library(fabm_models_niva OBJECT
             brom/brom_methane.F90
             brom/brom_ni.F90
             brom/brom_nitrogen.F90
-            brom/brom_partitioning.F90
+            brom/brom_partit.F90
             brom/brom_pH.F90
             brom/brom_salt.F90
             brom/brom_silicon.F90
