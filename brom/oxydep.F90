@@ -533,7 +533,7 @@ _SET_DIAGNOSTIC_(self%id_Autolys,Autolys)
              +salt*(-0.033096_rk+0.014259_rk*TempT-0.0017_rk*TempT*TempT)) !Osat
    Osat = Osat*1000._rk/22.4_rk  ! convert from ml/l into uM
 
-   ko2o = 0.251_rk*windspeed**2.0_rk*(sc/660._rk)**(-0.5_rk) ! Wanninkhof 2014
+   ko2o = 0.251_rk*windspeed**2.0_rk*(Sc/660._rk)**(-0.5_rk) ! Wanninkhof 2014
 
    Qs = ko2o*(Osat-O2)*0.24/86400._rk ! 0.24 is to convert from [cm/h] to [m/day]
 !   Qs = windspeed*(Osat-O2)/86400._rk !After (Burchard et al., 2005)
