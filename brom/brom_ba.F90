@@ -30,8 +30,8 @@
       
       !---- Ba---------!
       real(rk) :: K_BaSO4=5.    ! BaSO4 equilibrium constant (Solubility Product Constant) (uM)=5  ( 5 umol/l, Wiki,09)  
-      real(rk) :: K_BaSO4_form=1.4e-6 ! Specific rate of precipitation of BaSO4 from Ba with SO4 (1/day)=1.4e-6 (5x10-4 uM/yr,  Arndt,09)
-      real(rk) :: K_BaSO4_diss=8.e-11 ! Specific rate of dissollution of BaSO4 to Ba and SO4  (1/day)=8.e-11 (3x10-8 1/yr, Arndt,09)
+      real(rk) :: K_BaSO4_form=0.0 !1.4e-6 ! Specific rate of precipitation of BaSO4 from Ba with SO4 (1/day)=1.4e-6 (5x10-4 uM/yr,  Arndt,09)
+      real(rk) :: K_BaSO4_diss=0.0 !8.e-11 ! Specific rate of dissollution of BaSO4 to Ba and SO4  (1/day)=8.e-11 (3x10-8 1/yr, Arndt,09)
 !     Model parameters
       real(rk) :: Wsed= 5. !1Rate of sinking of detritus (POP, PON)d-1 !!  Wdetr=1.5 (Savchuk, Wulff,1996),!Wdetr= 3.5; 20. (Gregoire,2000)      
    contains
@@ -110,7 +110,7 @@
    _GET_(self%id_BaSO4,BaSO4)    
    _GET_(self%id_SO4, SO4)
 
-!BaSO¤ formation/dissollution (Arndt,09)
+!BaSOï¿½ formation/dissollution (Arndt,09)
           Om_BaSO4=SO4*Ba/(self%K_BaSO4) 
 !% BaSO4 formation Ba2+ + SO42- -> BaSO4  (Arndt,09)
     baso4_prec = 0.0_rk !self%K_BaSO4_form*max(0._rk,(Om_BaSO4-1._rk))
