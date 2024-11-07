@@ -170,7 +170,7 @@
   !  Lower boundary
    call self%get_parameter(self%Bu,        'Bu',         'nd',      'Burial coeficient for lower boundary',                default=0.25_rk)
    call self%get_parameter(self%Trel,      'Trel',       's/m',     'Relaxation time for exchange with teh sediments',     default=1e5_rk)
-   call self%get_parameter(self%O2_suboxic,    'O2_suboxic',     'mmol/m3', 'Limiting O2 value for oxic/suboxic switch',   default=40._rk)
+   call self%get_parameter(self%O2_suboxic,    'O2_suboxic',     'mmol/m3', 'Threshold O2 value for oxic/suboxic switch',   default=40._rk)
    call self%get_parameter(self%b_ox,      'b_ox',       'mmol/m3', 'Oxy in the sediment',                                 default=0._rk)
    call self%get_parameter(self%b_dom_ox,  'b_dom_ox',   'mmol/m3', 'OM in the sediment (oxic conditions)',                default=2._rk)
    call self%get_parameter(self%b_dom_anox,'b_dom_anox', 'mmol/m3', 'OM in the sediment (anoxic conditions) ',             default=6._rk)
