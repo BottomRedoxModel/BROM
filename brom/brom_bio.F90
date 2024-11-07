@@ -491,7 +491,7 @@ module fabm_niva_brom_bio
             !Phy
             !Influence of the Irradiance on photosynthesis         
             if (self%phy_light_dependence == 1) then   !Dependence on Irradiance 
-               LimLight = Iz/self%Iopt*exp(1-Iz/self%Iopt)                 ! Steel     
+               LimLight = Iz/self%Iopt*exp(1._rk-Iz/self%Iopt)                 ! Steel     
              else if (self%phy_light_dependence == 2) then
                LimLight = (1._rk-exp(-self%alphaI*Iz/(self%K_phy_gro))) & ! units are 1/s !
                           *exp(-self%betaI*Iz/(self%K_phy_gro)) ! (Platt et al., 1980) 
