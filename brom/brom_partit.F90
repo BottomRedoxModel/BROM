@@ -10,8 +10,8 @@
 !
 ! !DESCRIPTION:
 !   This module equilibrates total dissolved Substance 
-!   between free dissolved form (Ci_dis) and 
-!   Subastance partitioned with living orgamisms (Ci_phybac and Ci_het), 
+!   between free dissolved form (Ci_free) and 
+!   Subastance partitioned with living orgamisms (Ci_phy and Ci_het), 
 !   particulate (Ci_POM) and dissolved (Ci_DOM) organic
 !   matter, using partitioning approach. The rate of equilibration 
 !   is assumed to be fast process compared with the typical 
@@ -33,7 +33,7 @@
 ! !PUBLIC DERIVED TYPES:
    type,extends(type_base_model),public :: type_niva_brom_partit
 !     Variable identifiers
-      type (type_state_variable_id)        :: id_Ci_dis, id_Ci_phybac, id_Ci_het, id_Ci_POM, id_Ci_DOM, id_Ci_miner! , id_Ci_tot 
+      type (type_state_variable_id)        :: id_Ci_free, id_Ci_phy, id_Ci_het, id_Ci_POM, id_Ci_DOM, id_Ci_miner! , id_Ci_tot 
       type (type_state_variable_id)        :: id_Phy, id_Het, id_Baae, id_Bhae, id_Baan, id_Bhan, id_NH4, id_Sipart, id_O2
       type (type_state_variable_id)        :: id_Mn4, id_FeS, id_FeS2, id_POML, id_DOML, id_POMR, id_DOMR
       type (type_dependency_id)            :: id_temp, id_par, id_depth
@@ -41,6 +41,7 @@
       type (type_diagnostic_variable_id)   :: id_Ci_tot_diss, id_Ci_tot_part        
 
       real(rk) :: Wsed, Wphy, Whet, Wm
+      real(rk) :: Iopt, O2_suboxic
       real(rk) :: Kow_bio, Kow_pom, Kow_dom
       real(rk) :: K_biodegrad, K_biodegrad_anae, K_hydrolysis, K_photolysis
    contains
@@ -86,10 +87,13 @@
    call self%get_parameter(self%Whet, 'Whet', '[m/day]',  'Rate of sinking of Het',                 default=5.00_rk) 
    call self%get_parameter(self%Wsed, 'Wsed', '[m/day]',  'Rate of sinking of detritus (POP, POM)', default=5.00_rk) 
    call self%get_parameter(self%Wm,   'Wm','   [m/day]',  'Rate of accelerated sinking of metals',  default=7.0_rk)
+   call self%get_parameter(self%O2_suboxic, 'O2_suboxic', 'mmol/m3', 'Threshold O2 value for oxic/suboxic switch', default=40._rk)
+   call self%get_parameter(self%Iopt,       'Iopt',       'Watts/m**2/h', 'Optimal irradiance',   default=25.0_rk)
+
    
     !Register state variables 
-   call self%register_state_variable(self%id_Ci_dis,  'Ci_dis', 'mol/m**3', 'Ci_dis', minimum=0.0_rk)
-   call self%register_state_variable(self%id_Ci_phybac, 'Ci_phybac', 'mol/m**3','Ci_phybac', minimum=0.0_rk)
+   call self%register_state_variable(self%id_Ci_free,  'Ci_free', 'mol/m**3', 'Ci_free', minimum=0.0_rk)
+   call self%register_state_variable(self%id_Ci_phy, 'Ci_phy', 'mol/m**3','Ci_phy', minimum=0.0_rk)
    call self%register_state_variable(self%id_Ci_het, 'Ci_het', 'mol/m**3','Ci_het', minimum=0.0_rk)
    call self%register_state_variable(self%id_Ci_POM, 'Ci_POM', 'mol/m**3','Ci_POM', minimum=0.0_rk)
    call self%register_state_variable(self%id_Ci_DOM, 'Ci_DOM', 'mol/m**3','Ci_DOM', minimum=0.0_rk)
@@ -140,21 +144,22 @@
 !  Original author(s): 
 !
 ! !LOCAL VARIABLES:
-   real(rk) :: Ci_dis, Ci_phybac, Ci_het, Ci_POM, Ci_DOM, Ci_miner ! , Ci_tot 
+   real(rk) :: Ci_free, Ci_phy, Ci_het, Ci_POM, Ci_DOM, Ci_miner ! , Ci_tot 
    real(rk) :: Ci_tot_diss,Ci_tot_part
    real(rk) :: Phy, Het, Baae, Bhae, Baan, Bhan, POMR, DOMR, POML, DOML, O2
-   real(rk) :: dCi_dis, dCi_phybac, dCi_het, dCi_POM, dCi_DOM, dCi_miner 
+   real(rk) :: dCi_free, dCi_phy, dCi_het, dCi_POM, dCi_DOM, dCi_miner 
    real(rk) :: temp, depth, Iz
+   real(rk) :: Iopt, O2_suboxic
    real(rk) :: dCi_tot_diss, dCi_tot_part
-   real(rk) :: pol_phybac  ! "new" pollutant in phytoplankton and bacteria,"ng?"/l
+   real(rk) :: pol_phy  ! "new" pollutant in phytoplankton and bacteria,"ng?"/l
    real(rk) :: pol_het     ! "new" pollutant in heterotrophs,"ng?"/l
    real(rk) :: pol_dom     ! "new" pollutant in DOM, "ng?"/l
    real(rk) :: pol_pom     ! "new" pollutant in POM, "ng?"/l
-   real(rk) :: pol_dis     ! "new" pollutant in dissolved INORGANIC,"ng?"/l, i.e. not partitioned  
+   real(rk) :: pol_free     ! "new" pollutant in dissolved INORGANIC,"ng?"/l, i.e. not partitioned  
    
    real(rk) :: Ci_total   ! total pollutant, "ng?"/l
    
-   real(rk) :: sha_phybac ! % share of polutant in phytoplankton and bacteria
+   real(rk) :: sha_phy ! % share of polutant in phytoplankton and bacteria
    real(rk) :: sha_het    ! % share of polutant in heterotrophs
    real(rk) :: sha_pom    ! % share of polutant in POM
    real(rk) :: sha_dom    ! % share of polutant in DOM
@@ -176,8 +181,8 @@
    _GET_(self%id_depth,depth)            ! depth
    _GET_(self%id_par,Iz)                 ! local photosynthetically active radiation
 
-   _GET_(self%id_Ci_dis,Ci_dis)   
-   _GET_(self%id_Ci_phybac,Ci_phybac)   
+   _GET_(self%id_Ci_free,Ci_free)   
+   _GET_(self%id_Ci_phy,Ci_phy)   
    _GET_(self%id_Ci_het,Ci_het)   
    _GET_(self%id_Ci_POM,Ci_POM)   
    _GET_(self%id_Ci_DOM,Ci_DOM)   
@@ -198,15 +203,15 @@
    _GET_(self%id_O2,O2)
    
 ! Let's first assume that all the polutant is dissolved INORGANIC...
-        Ci_total = Ci_dis+ Ci_phybac+ Ci_het+ Ci_POM+ Ci_DOM + Ci_miner  !total amount of pollutant 
+        Ci_total = Ci_free+ Ci_phy+ Ci_het+ Ci_POM+ Ci_DOM + Ci_miner  !total amount of pollutant 
 
 ! We assume that density of organic matter is the same as that of 
 !  water, i.e. 1 g=1 ml and operate with weight units to caluclate 
 !  the shares of pollutant partitioning medias:
        if((Phy+Baae+Bhae+Baan+Bhan)<=0._rk) then 
-        sha_phybac=0._rk 
+        sha_phy=0._rk 
        else
-        sha_phybac=uMn2lip/1000._rk*(Phy+Baae+Bhae+Baan+Bhan)  ! Volume(weight in kg, g->kg=/1000) of BIO
+        sha_phy=uMn2lip/1000._rk*(Phy+Baae+Bhae+Baan+Bhan)  ! Volume(weight in kg, g->kg=/1000) of BIO
        endif 
 
        if(Het<=0._rk) then 
@@ -227,25 +232,25 @@
         sha_dom=uMn2lip/1000._rk*(DOML+DOMR)  ! Volume(weight in kg, g->kg=/1000) of BIO
        endif    
 
-      sha_free = 1._rk-sha_phybac-sha_het-sha_pom-sha_dom ! i.e Volume(weight in [kg]) of 1l of water minus volumes of org. and part. forms 
+      sha_free = 1._rk-sha_phy-sha_het-sha_pom-sha_dom ! i.e Volume(weight in [kg]) of 1l of water minus volumes of org. and part. forms 
 !! sum of potential shared due to volumes AND part.coeffs.  Kow_water=1. needed for correct units is excluded
 
 !! Now we calculate "new" concentrations, "pol_XXX" from total Ci_total using calculated shares.
 !!       The free Ci  left as dissolved free
-   pol_dis = Ci_total * sha_free / (sha_free + self%Kow_bio*sha_phybac &
+   pol_free = Ci_total * sha_free / (sha_free + self%Kow_bio*sha_phy &
            + self%Kow_bio*sha_het + self%Kow_pom*sha_pom + self%Kow_dom*sha_dom)
 !! subst.conc. partitioned to phy and bact
-   pol_phybac=max(0.0_rk,self%Kow_bio*pol_dis*sha_phybac/sha_free)
+   pol_phy=max(0.0_rk,self%Kow_bio*pol_free*sha_phy/sha_free)
 !! subst.conc. partitioned to het
-   pol_het = max(0.0_rk,self%Kow_bio*pol_dis*sha_het/sha_free)
+   pol_het = max(0.0_rk,self%Kow_bio*pol_free*sha_het/sha_free)
 !! subst.conc. partitioning to POM
-   pol_pom = max(0.0_rk,self%Kow_pom*pol_dis*sha_pom/sha_free)           
+   pol_pom = max(0.0_rk,self%Kow_pom*pol_free*sha_pom/sha_free)           
 !! subst.conc. partitioning to DOM
-   pol_dom = max(0.0_rk,self%Kow_dom*pol_dis*sha_dom/sha_free)
+   pol_dom = max(0.0_rk,self%Kow_dom*pol_free*sha_dom/sha_free)
 
 ! difference betweeen new and old state variable, needed for FABM 
-    dCi_dis    = -Ci_dis    +pol_dis
-    dCi_phybac = -Ci_phybac +pol_phybac
+    dCi_free    = -Ci_free    +pol_free
+    dCi_phy = -Ci_phy +pol_phy
     dCi_het    = -Ci_het    +pol_het
     dCi_POM    = -Ci_POM    +pol_pom
     dCi_DOM    = -Ci_DOM    +pol_dom
@@ -257,27 +262,27 @@
 !       + self%K_hydrolysis &                          ! hydropysis
 !       + self%K_photolysis*Iz/25.*exp(1._rk-Iz/25.))  !photolysis f(light)
 
-    dCi_dis    = dCi_dis    - Ci_dis    *(self%K_biodegrad-(self%K_biodegrad-self%K_biodegrad_anae)*thr_l(15._rk,O2,1._rk) &
-                                         +self%K_photolysis*Iz/25.*exp(1._rk-Iz/25.) + self%K_hydrolysis) 
-    dCi_phybac = dCi_phybac - Ci_phybac * self%K_biodegrad-(self%K_biodegrad-self%K_biodegrad_anae)*thr_l(15._rk,O2,1._rk)
-    dCi_het    = dCi_het    - Ci_het    * self%K_biodegrad-(self%K_biodegrad-self%K_biodegrad_anae)*thr_l(15._rk,O2,1._rk)
-    dCi_POM    = dCi_POM    - Ci_POM    * self%K_biodegrad-(self%K_biodegrad-self%K_biodegrad_anae)*thr_l(15._rk,O2,1._rk)
-    dCi_DOM    = dCi_DOM    - Ci_DOM    *(self%K_biodegrad-(self%K_biodegrad-self%K_biodegrad_anae)*thr_l(15._rk,O2,1._rk) &
-                                         +self%K_photolysis*Iz/25.*exp(1._rk-Iz/25.))
-    dCi_miner  =  0.0_rk
+    dCi_free = dCi_free - Ci_free *(self%K_biodegrad-(self%K_biodegrad-self%K_biodegrad_anae)*thr_l(self%O2_suboxic,O2,1._rk) &
+                                       +self%K_photolysis*Iz/self%Iopt*exp(1._rk-Iz/self%Iopt) + self%K_hydrolysis) 
+    dCi_phy   = dCi_phy - Ci_phy  * self%K_biodegrad-(self%K_biodegrad-self%K_biodegrad_anae)*thr_l(self%O2_suboxic,O2,1._rk)
+    dCi_het   = dCi_het - Ci_het  * self%K_biodegrad-(self%K_biodegrad-self%K_biodegrad_anae)*thr_l(self%O2_suboxic,O2,1._rk)
+    dCi_POM   = dCi_POM - Ci_POM  * self%K_biodegrad-(self%K_biodegrad-self%K_biodegrad_anae)*thr_l(self%O2_suboxic,O2,1._rk)
+    dCi_DOM   = dCi_DOM - Ci_DOM  *(self%K_biodegrad-(self%K_biodegrad-self%K_biodegrad_anae)*thr_l(self%O2_suboxic,O2,1._rk) &
+                                       +self%K_photolysis*Iz/self%Iopt*exp(1._rk-Iz/self%Iopt))                 
+    dCi_miner =  0.0_rk
 
-    dCi_tot_diss  =  dCi_dis +dCi_DOM
-    dCi_tot_part  =  dCi_phybac +dCi_het +dCi_POM +dCi_miner
+    dCi_tot_diss  =  dCi_free +dCi_DOM
+    dCi_tot_part  =  dCi_phy +dCi_het +dCi_POM +dCi_miner
     
-   _SET_ODE_(self%id_Ci_dis,    dCi_dis)
-   _SET_ODE_(self%id_Ci_phybac, dCi_phybac)
-   _SET_ODE_(self%id_Ci_het,    dCi_het)
-   _SET_ODE_(self%id_Ci_POM,    dCi_POM)
-   _SET_ODE_(self%id_Ci_DOM,    dCi_DOM)
-   _SET_ODE_(self%id_Ci_miner,  dCi_miner)
+   _SET_ODE_(self%id_Ci_free,  dCi_free)
+   _SET_ODE_(self%id_Ci_phy,   dCi_phy)
+   _SET_ODE_(self%id_Ci_het,   dCi_het)
+   _SET_ODE_(self%id_Ci_POM,   dCi_POM)
+   _SET_ODE_(self%id_Ci_DOM,   dCi_DOM)
+   _SET_ODE_(self%id_Ci_miner, dCi_miner)
 
-   _SET_DIAGNOSTIC_(self%id_Ci_tot_diss, pol_dis+pol_dom)   
-   _SET_DIAGNOSTIC_(self%id_Ci_tot_part, pol_phybac+pol_het+pol_pom)      
+   _SET_DIAGNOSTIC_(self%id_Ci_tot_diss, pol_free+pol_dom)   
+   _SET_DIAGNOSTIC_(self%id_Ci_tot_part, pol_phy+pol_het+pol_pom)      
    
 ! Leave spatial loops (if any)
    _LOOP_END_
@@ -305,17 +310,17 @@ end function
       _DECLARE_ARGUMENTS_GET_VERTICAL_MOVEMENT_
       
       real(rk) :: Wadd, Wphy_tot, Whet_tot, Wsed_tot, Wm_tot
-           
+
       _LOOP_BEGIN_
    
       _GET_(self%id_Wadd,Wadd)
       
-      Wphy_tot = self%Wphy + 0.25_rk * Wadd
+       Wphy_tot = self%Wphy + 0.25_rk * Wadd
        Whet_tot = self%Whet + 0.5_rk * Wadd
        Wsed_tot = self%Wsed + Wadd
        Wm_tot = self%Wm + Wadd
  
-      _ADD_VERTICAL_VELOCITY_(self%id_Ci_phybac, Wphy_tot)
+      _ADD_VERTICAL_VELOCITY_(self%id_Ci_phy, Wphy_tot)
       _ADD_VERTICAL_VELOCITY_(self%id_Ci_het, Whet_tot)
       _ADD_VERTICAL_VELOCITY_(self%id_Ci_POM, Wsed_tot)
       _ADD_VERTICAL_VELOCITY_(self%id_Ci_miner, Wsed_tot)
