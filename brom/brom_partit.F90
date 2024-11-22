@@ -38,7 +38,8 @@
       type (type_state_variable_id)        :: id_Mn4, id_FeS, id_FeS2, id_POML, id_DOML, id_POMR, id_DOMR
       type (type_dependency_id)            :: id_temp, id_par, id_depth
       type (type_dependency_id)            :: id_Hplus,  id_Wadd      
-      type (type_diagnostic_variable_id)   :: id_Ci_tot_diss, id_Ci_tot_part        
+      type (type_diagnostic_variable_id)   :: id_Ci_tot_diss, id_Ci_tot_part, id_Ci_in_biota    
+      type (type_diagnostic_variable_id)   :: id_Ci_tot_photolysis, id_Ci_tot_hydrolysis, id_Ci_tot_biodegrad        
 
       real(rk) :: Wsed, Wphy, Whet, Wm
       real(rk) :: Iopt, O2_suboxic
@@ -112,13 +113,19 @@
    call self%register_state_dependency(self%id_DOMR,'DOMR','mmol/m**3','refractory DOM')
    call self%register_state_dependency(self%id_O2,  'O2',    'mmol/m**3', 'O2')
 
+    !Register environmental dependencies
    call self%register_dependency(self%id_Hplus,'Hplus','mmol/m**3','H+ hydrogen')
    call self%register_dependency(self%id_Wadd,'Wadd','[1/day]',   'Additional sinking velocity via Mn4 adsorptoin')
+   call self%register_dependency(self%id_par,standard_variables%downwelling_photosynthetic_radiative_flux)
 
     !Register diagnostic variables 
    call self%register_diagnostic_variable(self%id_Ci_tot_diss,'Ci_tot_diss','mol/m**3','Ci_tot_diss',output=output_time_step_integrated)
-   call self%register_diagnostic_variable(self%id_Ci_tot_part,'Ci_tot_part','mol/m**3','Ci_tot_part',output=output_time_step_integrated)   
-
+   call self%register_diagnostic_variable(self%id_Ci_tot_part,'Ci_tot_part','mol/m**3','Ci_tot_part',output=output_time_step_integrated)  
+   call self%register_diagnostic_variable(self%id_Ci_tot_photolysis,'Ci_tot_photolysis','mol/m**3/s','Ci_tot_photolysis',output=output_time_step_integrated)  
+   call self%register_diagnostic_variable(self%id_Ci_tot_hydrolysis,'Ci_tot_hydrolysis','mol/m**3/s','Ci_tot_hydrolysis',output=output_time_step_integrated)  
+   call self%register_diagnostic_variable(self%id_Ci_tot_biodegrad, 'Ci_tot_biodegrad', 'mol/m**3/s','Ci_tot_biodegrad' ,output=output_time_step_integrated)  
+   call self%register_diagnostic_variable(self%id_Ci_in_biota, 'Ci_in_biota', 'mol/m**3/s','Ci_in_biota' ,output=output_time_step_integrated)  
+   
    ! Specify that are rates computed in this module are per day (default: per second)
    self%dt = 86400.
    
@@ -168,6 +175,9 @@
    real(rk) :: sha_poten_partit ! % share of potential partitioning based on volumes and part.coeffs 
    real(rk) :: uMn2lip=0.0084   !coeff.to transfer POM (umol/l N)->(g DryWeight/l) 
    real(rk) :: decay_total      !total rate of decay of Ci (d-1)
+   real(rk) :: spec_rate_biodegrad   ! specific rate of biodegradaion
+   real(rk) :: spec_rate_photolysis  ! specific rate of photolysis
+   real(rk) :: Ci_conc_in_biota           ! concentration in biota
 !====================================================
 !EOP 
 !-----------------------------------------------------------------------
@@ -211,25 +221,25 @@
        if((Phy+Baae+Bhae+Baan+Bhan)<=0._rk) then 
         sha_phy=0._rk 
        else
-        sha_phy=uMn2lip/1000._rk*(Phy+Baae+Bhae+Baan+Bhan)  ! Volume(weight in kg, g->kg=/1000) of BIO
+        sha_phy=uMn2lip/1000._rk*(Phy+Baae+Bhae+Baan+Bhan)  ! Volume(weight in kg, g->kg=/1000) of PHY
        endif 
 
        if(Het<=0._rk) then 
         sha_het=0._rk 
        else
-        sha_het=uMn2lip/1000._rk*Het  ! Volume(weight in kg, g->kg=/1000) of BIO
+        sha_het=uMn2lip/1000._rk*Het  ! Volume(weight in kg, g->kg=/1000) of HET
        endif 
        
        if((POML+POMR)<=0._rk) then 
         sha_pom=0._rk 
        else
-        sha_pom=uMn2lip/1000._rk*(POML+POMR)  ! Volume(weight in kg, g->kg=/1000) of BIO
+        sha_pom=uMn2lip/1000._rk*(POML+POMR)  ! Volume(weight in kg, g->kg=/1000) of POM
        endif     
        
        if((DOML+DOMR)<=0._rk) then 
         sha_dom=0.0_rk 
        else
-        sha_dom=uMn2lip/1000._rk*(DOML+DOMR)  ! Volume(weight in kg, g->kg=/1000) of BIO
+        sha_dom=uMn2lip/1000._rk*(DOML+DOMR)  ! Volume(weight in kg, g->kg=/1000) of DOM
        endif    
 
       sha_free = 1._rk-sha_phy-sha_het-sha_pom-sha_dom ! i.e Volume(weight in [kg]) of 1l of water minus volumes of org. and part. forms 
@@ -249,26 +259,26 @@
    pol_dom = max(0.0_rk,self%Kow_dom*pol_free*sha_dom/sha_free)
 
 ! difference betweeen new and old state variable, needed for FABM 
-    dCi_free    = -Ci_free    +pol_free
-    dCi_phy = -Ci_phy +pol_phy
-    dCi_het    = -Ci_het    +pol_het
-    dCi_POM    = -Ci_POM    +pol_pom
-    dCi_DOM    = -Ci_DOM    +pol_dom
-    dCi_miner  =  0.0_rk
+    dCi_free  = -Ci_free +pol_free
+    dCi_phy   = -Ci_phy  +pol_phy
+    dCi_het   = -Ci_het  +pol_het
+    dCi_POM   = -Ci_POM  +pol_pom
+    dCi_DOM   = -Ci_DOM  +pol_dom
+    dCi_miner =  0.0_rk
+
+    Ci_conc_in_biota = (pol_phy +pol_het)/(sha_phy+sha_het)
 
 ! Add to the calculated difference decrease of Ci_xxxxx due to biogegradaion, hydrolysis and photolysis:     
-!    decay_total = ( &
-!         self%K_biodegrad-(self%K_biodegrad-self%K_biodegrad_anae)*thr_l(15._rk,O2,1._rk) & ! biodegradation f(O2)
-!       + self%K_hydrolysis &                          ! hydropysis
-!       + self%K_photolysis*Iz/25.*exp(1._rk-Iz/25.))  !photolysis f(light)
 
-    dCi_free = dCi_free - Ci_free *(self%K_biodegrad-(self%K_biodegrad-self%K_biodegrad_anae)*thr_l(self%O2_suboxic,O2,1._rk) &
-                                       +self%K_photolysis*Iz/self%Iopt*exp(1._rk-Iz/self%Iopt) + self%K_hydrolysis) 
-    dCi_phy   = dCi_phy - Ci_phy  * self%K_biodegrad-(self%K_biodegrad-self%K_biodegrad_anae)*thr_l(self%O2_suboxic,O2,1._rk)
-    dCi_het   = dCi_het - Ci_het  * self%K_biodegrad-(self%K_biodegrad-self%K_biodegrad_anae)*thr_l(self%O2_suboxic,O2,1._rk)
-    dCi_POM   = dCi_POM - Ci_POM  * self%K_biodegrad-(self%K_biodegrad-self%K_biodegrad_anae)*thr_l(self%O2_suboxic,O2,1._rk)
-    dCi_DOM   = dCi_DOM - Ci_DOM  *(self%K_biodegrad-(self%K_biodegrad-self%K_biodegrad_anae)*thr_l(self%O2_suboxic,O2,1._rk) &
-                                       +self%K_photolysis*Iz/self%Iopt*exp(1._rk-Iz/self%Iopt))                 
+    spec_rate_biodegrad  = self%K_biodegrad-(self%K_biodegrad-self%K_biodegrad_anae)*thr_l(self%O2_suboxic,O2,1._rk) ! biodegradation f(O2)
+    spec_rate_photolysis = self%K_photolysis*Iz/self%Iopt*exp(1._rk-Iz/self%Iopt)    !photolysis f(light)
+
+    dCi_free = dCi_free - Ci_free *(spec_rate_biodegrad+spec_rate_photolysis+self%K_hydrolysis) 
+    dCi_phy   = dCi_phy - Ci_phy  * spec_rate_biodegrad
+    dCi_het   = dCi_het - Ci_het  * spec_rate_biodegrad
+    dCi_POM   = dCi_POM - Ci_POM  * spec_rate_biodegrad
+    dCi_DOM   = dCi_DOM - Ci_DOM  *(spec_rate_biodegrad+spec_rate_photolysis)                 
+              
     dCi_miner =  0.0_rk
 
     dCi_tot_diss  =  dCi_free +dCi_DOM
@@ -283,6 +293,11 @@
 
    _SET_DIAGNOSTIC_(self%id_Ci_tot_diss, pol_free+pol_dom)   
    _SET_DIAGNOSTIC_(self%id_Ci_tot_part, pol_phy+pol_het+pol_pom)      
+   
+   _SET_DIAGNOSTIC_(self%id_Ci_tot_photolysis, spec_rate_photolysis*(Ci_DOM+Ci_free)) 
+   _SET_DIAGNOSTIC_(self%id_Ci_tot_hydrolysis, self%K_hydrolysis   * Ci_free) 
+   _SET_DIAGNOSTIC_(self%id_Ci_tot_biodegrad,  spec_rate_biodegrad *(Ci_DOM+Ci_POM+Ci_phy+Ci_het)) 
+   _SET_DIAGNOSTIC_(self%id_Ci_in_biota,       Ci_conc_in_biota) 
    
 ! Leave spatial loops (if any)
    _LOOP_END_
