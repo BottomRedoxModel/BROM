@@ -45,6 +45,7 @@
       real(rk) :: Iopt, O2_suboxic
       real(rk) :: Kow_bio, Kow_pom, Kow_dom
       real(rk) :: K_biodegrad, K_biodegrad_anae, K_hydrolysis, K_photolysis
+      real(rk) :: t_ref, t_upt_min, t_upt_max, q10
    contains
       procedure :: initialize
       procedure :: do
@@ -76,7 +77,11 @@
 !EOP
 !-----------------------------------------------------------------------
 !BOC
-! Parameters, i.e. rate constants    
+! Parameters, i.e. rate constants  
+   call self%get_parameter(self%t_ref,        't_ref','[oC]','reference temperature', default=20.0_rk)
+   call self%get_parameter(self%t_upt_min,'t_upt_min', '[-]','min temperature parameter for q10', default=10.0_rk)
+   call self%get_parameter(self%t_upt_max,'t_upt_max', '[-]','max temperature parameter for q10', default=32.0_rk)
+   call self%get_parameter(self%q10,            'q10', '[-]','rate change at 10C', default=2.0_rk)
    call self%get_parameter(self%K_biodegrad,      'K_biodegrad', '[1/day]','rate of biodegradation, 1/d', default=00000.0_rk)
    call self%get_parameter(self%K_biodegrad_anae, 'K_biodegrad_anae', '[1/day]','rate of biodegradation in anaerobic cond., 1/d', default=00000.0_rk)
    call self%get_parameter(self%K_hydrolysis, 'K_hydrolysis','[1/day]','rate of hydrolysis, 1/d',     default=00000.0_rk)
@@ -177,7 +182,9 @@
    real(rk) :: decay_total      !total rate of decay of Ci (d-1)
    real(rk) :: spec_rate_biodegrad   ! specific rate of biodegradaion
    real(rk) :: spec_rate_photolysis  ! specific rate of photolysis
-   real(rk) :: Ci_conc_in_biota           ! concentration in biota
+   real(rk) :: spec_rate_hydrolysis  ! specific rate of photolysis
+   real(rk) :: Ci_conc_in_biota      ! concentration in biota
+   real(rk) :: f_t                   ! decomposition rates dependence on temperatures
 !====================================================
 !EOP 
 !-----------------------------------------------------------------------
@@ -266,14 +273,21 @@
     dCi_DOM   = -Ci_DOM  +pol_dom
     dCi_miner =  0.0_rk
 
-    Ci_conc_in_biota = (pol_phy +pol_het)/(sha_phy+sha_het)
+    Ci_conc_in_biota = (pol_phy +pol_het)/(sha_phy+sha_het) ! ng/kg (or ng/L)
 
 ! Add to the calculated difference decrease of Ci_xxxxx due to biogegradaion, hydrolysis and photolysis:     
+! Q10 dependence of decomposition rates on temperature (modified from Blackford et l., 2006)
+    f_t = (self%q10**((temp-self%t_upt_min)/10._rk) &
+           - self%q10**((temp-self%t_upt_max)/3._rk))/ &
+          (self%q10**((self%t_ref-self%t_upt_min)/10._rk) &
+           - self%q10**((self%t_ref-self%t_upt_max)/3._rk))
 
-    spec_rate_biodegrad  = self%K_biodegrad-(self%K_biodegrad-self%K_biodegrad_anae)*thr_l(self%O2_suboxic,O2,1._rk) ! biodegradation f(O2)
-    spec_rate_photolysis = self%K_photolysis*Iz/self%Iopt*exp(1._rk-Iz/self%Iopt)    !photolysis f(light)
 
-    dCi_free = dCi_free - Ci_free *(spec_rate_biodegrad+spec_rate_photolysis+self%K_hydrolysis) 
+    spec_rate_biodegrad  = self%K_biodegrad-(self%K_biodegrad-self%K_biodegrad_anae)*thr_l(self%O2_suboxic,O2,1._rk)*f_t ! biodegradation *f(O2)*f(temp)
+    spec_rate_photolysis = self%K_photolysis*Iz/self%Iopt*exp(1._rk-Iz/self%Iopt)*f_t    !photolysis *f(light)*f(temp)
+    spec_rate_hydrolysis = self%K_hydrolysis*f_t   !hydrolysis *f(temp)
+
+    dCi_free = dCi_free - Ci_free *(spec_rate_biodegrad+spec_rate_photolysis+spec_rate_hydrolysis) 
     dCi_phy   = dCi_phy - Ci_phy  * spec_rate_biodegrad
     dCi_het   = dCi_het - Ci_het  * spec_rate_biodegrad
     dCi_POM   = dCi_POM - Ci_POM  * spec_rate_biodegrad
