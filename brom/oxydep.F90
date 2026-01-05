@@ -173,7 +173,7 @@
    call self%get_parameter(self%Bu,        'Bu',         'nd',      'Burial coeficient for lower boundary',                default=0.25_rk)
    call self%get_parameter(self%Trel,      'Trel',       's/m',     'Relaxation time for exchange with teh sediments',     default=1e5_rk)
    call self%get_parameter(self%O2_suboxic,    'O2_suboxic',     'mmol/m3', 'Threshold O2 value for oxic/suboxic switch',   default=40._rk)
-   call self%get_parameter(self%b_ox,      'b_ox',       'mmol/m3', 'Oxy in the sediment',                                 default=0._rk)
+   call self%get_parameter(self%b_ox,      'b_ox',       'mmol/m3', 'difference of OXY in the upper sediment and water',   default=15._rk)
    call self%get_parameter(self%b_dom_ox,  'b_dom_ox',   'mmol/m3', 'OM in the sediment (oxic conditions)',                default=2._rk)
    call self%get_parameter(self%b_dom_anox,'b_dom_anox', 'mmol/m3', 'OM in the sediment (anoxic conditions) ',             default=6._rk)
    call self%get_parameter(self%b_nut,     'b_nut',      'mmol/m3', 'NUT in the sediment',                                 default=0._rk)
@@ -607,7 +607,7 @@ _HORIZONTAL_LOOP_END_
       
        ! DOWNWARD flux of OXY dependent on redox conditions:
        !---  in suboxic conditions oxy is additionally consumed due to its depletion in the sediments
-       _SET_BOTTOM_EXCHANGE_(self%id_oxy,(F_ox(oxy,self%O2_suboxic)*(self%b_ox-oxy)+F_subox(oxy,self%O2_suboxic)*(0._rk-oxy))/self%Trel)
+       _SET_BOTTOM_EXCHANGE_(-self%id_oxy,(F_ox(oxy,self%O2_suboxic)*(self%b_ox)+F_subox(oxy,self%O2_suboxic)*(0._rk-oxy))/self%Trel)
        
        ! CHANGEABLE flux of NUT (NO3+NO2) dependent on redox conditions:
        !--- in oxic conditions nut is released from the oxygenated sediments
